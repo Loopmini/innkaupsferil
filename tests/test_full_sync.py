@@ -9,7 +9,7 @@ class FullSyncTest(unittest.TestCase):
   with tempfile.TemporaryDirectory() as td:
    root=Path(td);calls=[]
    atomic(root/'data/market-status.json',{'sources':{'pages':{'next_page':2},'urls':{'cursor':3}}})
-   def batch(root,selected):
+   def batch(root,selected,**kwargs):
     calls.extend(selected);d=load(root/'data/market-status.json',{})
     for key in selected:
      old=d['sources'].get(key,{})
@@ -23,7 +23,7 @@ class FullSyncTest(unittest.TestCase):
  def test_cancel_after_checkpoint(self):
   with tempfile.TemporaryDirectory() as td:
    root=Path(td);stop=threading.Event()
-   def batch(root,selected):
+   def batch(root,selected,**kwargs):
     stop.set();d={'sources':{'a':{'status':'partial','next_page':2}}};atomic(root/'data/market-status.json',d);return d
    with patch('full_sync.SOURCES',{'a':None,'b':None}),patch('full_sync.run',side_effect=batch):r=full_pass(root,stop,selected=['a'])
    self.assertEqual(r['status'],'stopped');self.assertEqual(r['batches'],1);self.assertFalse(r['running']);self.assertEqual(load(root/'data/market-status.json',{})['sources']['a']['next_page'],2)

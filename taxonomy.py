@@ -111,6 +111,9 @@ def detect(text):
             if re.search(pattern,n):return 'tools.hand.'+key
     for key,pattern in [('pliers',r'\b(?:t[oö]ng|tangir|bitto?ng|vatnspumpu?to?ng)\b'),('screwdrivers',r'\bskrufjarn\b'),('wrenches',r'\b(?:skiptilykill|skiptilyklar|fastlykill|fastlyklar|sexkantlykill|sexkantlyklar)\b'),('knives',r'\b(?:d[uú]kahnífur|dukahnífar|dukahníf|hnífur|hnifur|hnifar)\b')]:
         if re.search(pattern,n):return 'tools.hand.'+key
+    # A tool's target material must not become its product category. Blades remain separate.
+    if re.search(r'sagarblad|sagarblod|sagablad|sagablod',n):return 'tools.cutting.sawblades'
+    if re.search(r'\b(?:handsog|handsagir|handsagar|krossvidarsog|bakkasog|japansog|laufsog|hand saw|handsaw)\b',n) and not re.search(r'hulstur|haldari|varahlut',n):return 'tools.hand.handsaws'
     # Avoid treating measurements of a machine/accessory as dimensions of its material.
     for leaf, pattern in PRIORITY + RULES:
         if leaf=='building.timber.treated' and re.search(r'ogagnvar|ekki gagnvar',n):continue
