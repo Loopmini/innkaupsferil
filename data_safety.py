@@ -5,6 +5,7 @@ import re
 import sqlite3
 import tempfile
 import zipfile
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -23,7 +24,8 @@ def create(root,dbpath=None,reason='manual'):
             if not source.exists():continue
             if n.endswith('.sqlite'):
                 copy=Path(td)/n
-                with sqlite3.connect(source) as src,sqlite3.connect(copy) as dst:src.backup(dst)
+                with closing(sqlite3.connect(source)) as src, closing(sqlite3.connect(copy)) as dst:
+                    src.backup(dst)
                 raw=copy.read_bytes()
             else:raw=source.read_bytes()
             entries[n]=raw;manifest['files'][n]=hashlib.sha256(raw).hexdigest()
@@ -63,14 +65,15 @@ def restore(root,dbpath,name):
         for n,raw in entries.items():
             f=Path(td)/n;f.write_bytes(raw)
             if n.endswith('.sqlite'):
-                with sqlite3.connect(f) as con:
+                with closing(sqlite3.connect(f)) as con:
                     if con.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise ValueError('Gagnagrunnur í afriti er skemmdur.')
         rescue=create(root,dbpath,'before_restore')
         for n,raw in entries.items():
             dest=Path(dbpath) if n=='catalog.sqlite' else Path(root)/'data'/n
             dest.parent.mkdir(parents=True,exist_ok=True)
             if n.endswith('.sqlite'):
-                with sqlite3.connect(Path(td)/n) as src,sqlite3.connect(dest) as dst:src.backup(dst)
+                with closing(sqlite3.connect(Path(td)/n)) as src, closing(sqlite3.connect(dest)) as dst:
+                    src.backup(dst)
             else:
                 temp=dest.with_suffix(dest.suffix+'.restore');temp.write_bytes(raw);temp.replace(dest)
     return {'restored':name,'rescue_backup':rescue['name']}
