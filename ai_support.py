@@ -37,8 +37,10 @@ def product(o):
             if isinstance((v := o.get(k)), (str, int, float))}
     result['specifications'] = o.get('specifications', {})
     result['classification'] = o.get('classification', {}).get('path', [])
-    result.update(has_image=bool(o.get('image_url')), has_datasheet=bool(o.get('documents')),
+    result.update(has_image=bool(o.get('image_url')), has_datasheet=any(d.get('status')=='confirmed' and d.get('type')=='datasheet' and d.get('scope')=='product' for d in o.get('documents',[])),
                   has_price=o.get('price') is not None)
+    result['identity']=o.get('identity',{})
+    result['documents']=[{k:d.get(k) for k in ('name','url','source_url','type','status','scope','checked_at','locator')} for d in o.get('documents',[])[:15]]
     return result
 
 

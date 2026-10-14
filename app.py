@@ -22,6 +22,7 @@ import procurement
 import supplier_registry
 import assistant_reader
 import product_relations
+import product_evidence
 DATA_LOCK = threading.RLock()
 
 ROOT = Path(__file__).parent
@@ -57,6 +58,7 @@ def connect():
     import_manager.setup(db)
     procurement.setup(db)
     supplier_registry.setup(db)
+    product_evidence.setup(db)
     product_relations.setup(db)
     return db
 
@@ -166,6 +168,7 @@ def read_catalogue():
         terms={r['offer_id']:json.loads(r['data']) for r in db.execute('SELECT * FROM offer_terms')}
         extra.extend(procurement.reply_offers(db))
         images={r['offer_id']:r['url'] for r in db.execute('SELECT * FROM product_images')}
+        identities,evidence_links=product_evidence.load(db)
         details={r['offer_id']:json.loads(r['data']) for r in db.execute('SELECT * FROM product_details')}
     from product_extras import usable_image
     for r in offers+extra:
@@ -178,8 +181,10 @@ def read_catalogue():
         r['manual_category']=overrides.get(r['id'],'')
         r['image_url']=usable_image(r.get('image_url') or images.get(r['id'],''))
         if r['id'] in terms:r['terms']=terms[r['id']]
+        product_evidence.enrich(r,identities.get(r['id']),evidence_links.get(r['id'],[]))
         taxonomy.enrich(r,enrichments.get(r['id'],{}))
     with connect() as db:metadata['relation_index']=[dict(r) for r in db.execute('SELECT a,b,kind FROM product_relations')]
+    metadata['evidence_quality']=product_evidence.metrics(offers+extra)
     metadata['taxonomy']=taxonomy.TREE
     metadata['specification_fields']=taxonomy.SPEC_FIELDS
     metadata['sync']=sync_status()
@@ -200,7 +205,7 @@ def supplier_details(oid):
     if offer.get('source_kind')!='market' or offer.get('link_kind')=='category':return {}
     with connect() as db:
         cached=db.execute('SELECT * FROM product_details WHERE offer_id=?',(oid,)).fetchone()
-    if cached and json.loads(cached['data']).get('details_version',0)>=4 and (datetime.now(timezone.utc)-datetime.fromisoformat(cached['checked_at'])).total_seconds()<86400:return json.loads(cached['data'])
+    if cached and json.loads(cached['data']).get('details_version',0)>=5 and (datetime.now(timezone.utc)-datetime.fromisoformat(cached['checked_at'])).total_seconds()<86400:return json.loads(cached['data'])
     from market_sync import Client,SOURCES,AccessBlocked
     from product_extras import page_details,preserve_media
     url=offer.get('url','');origin=next((origin for name,origin in SOURCES.values() if name==offer['supplier'] and urlsplit(origin).hostname==urlsplit(url).hostname),None)
@@ -296,9 +301,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def get_response(self):
         path = urlsplit(self.path).path
+        if path == '/api/version':return self.send({'version':'0.18','theme':'compact-018','folder':str(ROOT.resolve()),'database':str(DB.resolve())})
         if path == '/api/product-relations':
             oid=int(parse_qs(urlsplit(self.path).query).get('id',['0'])[0])
             return self.send(product_relations.listing(__import__(__name__),oid))
+        if path == '/api/evidence-search':
+            oid=int(parse_qs(urlsplit(self.path).query).get('id',['0'])[0])
+            return self.send(product_evidence.search_plan(product_evidence.find(__import__(__name__),oid)))
+        if path == '/api/evidence-quality':return self.send(product_evidence.metrics(catalogue()['offers']))
         if path == '/api/supplier-profiles':return self.send(supplier_registry.listing(__import__(__name__)))
         if path == '/api/supplier-imports':
             name=parse_qs(urlsplit(self.path).query).get('name',[''])[0]
@@ -352,14 +362,14 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(catalogue())
         if path == '/api/template':
             return self.send((','.join(FIELDS) + '\n').encode(), content_type='text/csv; charset=utf-8')
-        files = {'/theme.css': ('theme.css','text/css'), '/theme-ui.js': ('theme-ui.js','text/javascript'), '/relations-ui.js': ('relations-ui.js','text/javascript'), '/interaction-ui.js': ('interaction-ui.js','text/javascript'), '/workspace-ui.js': ('workspace-ui.js','text/javascript'), '/families.js': ('families.js','text/javascript'), '/family-ui.js': ('family-ui.js','text/javascript'), '/supplier-ui.js': ('supplier-ui.js','text/javascript'), '/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/boot-check.js': ('boot-check.js','text/javascript'), '/evidence-ui.js': ('evidence-ui.js','text/javascript'), '/theme.css': ('theme.css','text/css'), '/theme-ui.js': ('theme-ui.js','text/javascript'), '/relations-ui.js': ('relations-ui.js','text/javascript'), '/interaction-ui.js': ('interaction-ui.js','text/javascript'), '/workspace-ui.js': ('workspace-ui.js','text/javascript'), '/families.js': ('families.js','text/javascript'), '/family-ui.js': ('family-ui.js','text/javascript'), '/supplier-ui.js': ('supplier-ui.js','text/javascript'), '/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
         if path in files:
             name, kind = files[path]
             return self.send((ROOT / 'static' / name).read_bytes(), content_type=kind + '; charset=utf-8')
         self.send({'error': 'Fannst ekki'}, 404)
 
     def do_POST(self):
-        if self.path.startswith('/api/ai-') or self.path=='/api/supplier-probe':return self.post_response()
+        if self.path.startswith('/api/ai-') or self.path in ('/api/supplier-probe','/api/evidence-discover'):return self.post_response()
         with DATA_LOCK:return self.post_response()
 
     def post_response(self):
@@ -409,6 +419,9 @@ class Handler(BaseHTTPRequestHandler):
                     if any(k not in ids for k in value['choices']):raise ValueError('Óþekkt BOM-lína.')
                     db.execute('INSERT OR REPLACE INTO bom_settings VALUES(?,?)',(bid,json.dumps(value)))
                 return self.send({'ok':True})
+            if self.path == '/api/evidence-discover':return self.send(product_evidence.discover(__import__(__name__),data))
+            if self.path == '/api/product-identity':return self.send(product_evidence.save_identity(__import__(__name__),data))
+            if self.path == '/api/product-document':return self.send(product_evidence.save_document(__import__(__name__),data))
             if self.path == '/api/product-enrichment':
                 oid=int(data['id'])
                 offer=next((o for o in catalogue()['offers'] if o['id']==oid),None)
@@ -481,7 +494,7 @@ class Handler(BaseHTTPRequestHandler):
                 oid=int(data['id']);details=supplier_details(oid)
                 if details:
                     offer=next(o for o in catalogue()['offers'] if o['id']==oid)
-                    details.update({k:offer[k] for k in ('classification','specifications','specification_evidence','specification_conflicts','missing_specifications','search_tags','product_enrichment')})
+                    details.update({k:offer[k] for k in ('classification','specifications','specification_evidence','specification_conflicts','missing_specifications','search_tags','product_enrichment','identity','documents')})
                 return self.send(details)
             if self.path == '/api/refresh-market':
                 return self.send({'started': start_sync(data.get('mode') if data.get('mode') in ('full','index') else 'batch',data.get('sources'))})
@@ -530,12 +543,18 @@ class Handler(BaseHTTPRequestHandler):
             self.send({'error':'Ekki tókst að vista eða lesa gögn. Engin árangursstaðfesting; skoðaðu afrit áður en þú reynir aftur.'},500)
 
 if __name__ == '__main__':
+    try:
+        server = ThreadingHTTPServer(('127.0.0.1', 8000), Handler)
+    except OSError:
+        print('NJORDUR: Port 8000 er i notkun. Lokaðu eldri keyrslu og ræstu aftur. Ný útgáfa hefur EKKI ræst.',flush=True)
+        raise SystemExit(1)
     connect().close()
     data_safety.create(ROOT,DB,'startup')
-    print('Njörður: http://127.0.0.1:8000 (local access only)', flush=True)
+    print('Njörður v0.18: http://127.0.0.1:8000 (local access only)', flush=True)
+    print('Forritsmappa:',ROOT.resolve(),flush=True)
+    print('Gagnagrunnur:',DB.resolve(),flush=True)
     if os.environ.get('INNKAUP_AUTO_REFRESH', '1') == '1':
         threading.Thread(target=refresh_loop, daemon=True).start()
-    server = ThreadingHTTPServer(('127.0.0.1', 8000), Handler)
     import sys
     if '--open' in sys.argv:
         import threading, webbrowser

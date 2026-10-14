@@ -17,3 +17,5 @@ const themeSupplier=editSupplier;editSupplier=function(s={}){if(!$('supplier-dia
 // A family opens inline; keep its heading visible without resetting search or filters.
 document.addEventListener('click',e=>{if(e.target.closest('[data-family]')){$('products').scrollIntoView({block:'start',behavior:'auto'});const heading=$('products').querySelector('h2,h3');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}}});
 document.addEventListener('keydown',e=>{if(e.key==='/'&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&!document.querySelector('dialog[open]')&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)&&!document.activeElement?.isContentEditable){e.preventDefault();showWorkspace('catalogue');$('search').focus();}});
+
+window.njordThemeReady=true;
