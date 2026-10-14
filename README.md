@@ -141,3 +141,23 @@ Kostnaður = heilar pakkningar sem þarf × verð pakkningar án VSK. Samanburð
 Niðurstöður sýna lægsta reiknanlega kostnað **á hverri línu**, skiptingu milli birgja og kostnað/þekju fyrir kaup hjá einum birgi. Ófullkomin körfa sýnir aðeins hlutakostnað, aldrei lægsta heildarverð. Þetta er ekki heildarbestun yfir frakt, magni háða afslætti eða lágmarkspantanir. Engin gengisumbreyting eða pöntunarsending. CSV-útflutningur inniheldur vöruval og kostnað þar sem hann er reiknanlegur.
 
 Prófanir: `python -m unittest discover -s tests`, `node tests/search.test.js` og `node tests/bom.test.js`. BOM-prófin ná yfir pakkarúnnun, ófullkomnar körfur, samþykki, gjaldmiðla, einingar, ferskleika og XLSX-formúluvarnir.
+
+
+## Fleiri vörur og birgjar – 14. október 2026
+
+Dynjandi og Tengi eru nú tengdir með opinberu Store API í 100 færslu lotum, sömu varfærnu verðtúlkun og Landvélar. Núllverð og verðbil verða ekki samanburðarverð. Keyra má `python market_sync.py --sources dynjandi` til að sækja næstu lotu. Sjálfgefin uppfærsla nær einnig til Dynjanda og Tengis.
+
+Birgjayfirlit sýnir nú líka kannaða birgja sem hafa engar vörur í grunni:
+- [Dynjandi](https://www.dynjandi.is/): öryggisbúnaður, persónuhlífar og iðnaðarvörur; tengdur.
+- [Tengi](https://www.tengi.is/): lagnaefni, fittings og ryðfríir lokar og hreinlætistæki; tengdur, hlutaþekja.
+- [Tandur](https://www.tandur.is/): hreinlætisefni, þrifaáhöld og rekstrarvörur; opinber listaverð með VSK, vörutenging ólokið.
+- [Vélasalan](https://velasalan.is/): dælur, vélar og varahlutir fyrir sjó og iðnað; vörutenging ólokið.
+
+Þetta eru mögulegir viðbótarbirgjar, ekki staðfest tæknileg jafngildi eða tæmandi markaðsyfirlit. Skoða þarf efnisgæði, mál, vottanir og pakkningar áður en vörur eru samþykktar í BOM.
+
+
+## Vörumyndir og handvirk flokkun
+
+Vöruspjaldið sýnir mynd frá birgja þegar myndaslóð fylgir vöruviðmóti eða opinber vörusíða birtir myndalýsigögn. Fyrir eldri færslur er mynd sótt þegar spjaldið er opnað. Engin mynd er giskuð út frá heiti eða óstaðfestum flokkatengli. Myndaleysi eða aðgangshöfnun birtist í spjaldinu; mynd getur táknað vörufjölskyldu, svo staðfesta þarf afbrigði. Myndir eru hlaðnar frá birgja með referrerpolicy=no-referrer.
+
+Í „Skoða“ → „Breyta flokkun“ má velja eða skrifa flokk, einnig fyrir óflokkaðar vörur. Flokkurinn gildir fyrir þessa vörufærslu, fer fram yfir sjálfvirka flokkun og vistast í data/catalog.sqlite. Upprunaleg birgjaflokkun er varðveitt. „Nota sjálfvirka flokkun“ eyðir eigin leiðréttingu. Verð og vörunúmer eru ekki breytt með þessari aðgerð. Varðveittu data/catalog.sqlite við uppfærslu uppsetningar.

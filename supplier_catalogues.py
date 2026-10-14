@@ -46,6 +46,8 @@ def parse_directory(key,supplier,body,url):
   m=re.search(r'Vörunúmer:\s*</[^>]+>\s*<[^>]+>(.*?)</',body,re.S|re.I)
   if m:sku=plain(m[1])
  r=base(key+'-directory-'+hashlib.sha256(url.encode()).hexdigest()[:20],supplier,name,url,sku)
+ from product_extras import page_image
+ r['image_url']=page_image(body,url)
  r.update(price_status='Verð ekki innlesið',availability='Vara í vöruskrá; lagerstaða óstaðfest',
           note='Vöruskrá lesin án verðtengingar. Færsla getur verið vörufjölskylda; stærð, afbrigði og kaupverð þarf að staðfesta.',collector='v0.4',catalogue_only=True)
  if key=='rubix':
@@ -80,7 +82,7 @@ def collect(key,supplier,client,previous,state,progress,budget=25):
    if r:records[r['key']]=r
   nxt='id="pagination--next"' in body
   return list(records.values()),dict(status='partial',scope='Vöruskrá í 20 færslu lotum; verð ekki innlesin',loaded=len(records),next_page=page+1 if nxt else 1,checked_at=now())
- if key=='landvelar':
+ if key in ('landvelar','dynjandi','tengi'):
   page=int(state.get('next_page',1))
   body,headers=client.get(client.origin+f'/wp-json/wc/store/v1/products?per_page=100&page={page}&orderby=id&order=asc')
   rows=json.loads(body)
@@ -88,7 +90,7 @@ def collect(key,supplier,client,previous,state,progress,budget=25):
   pages=int(next((v for k,v in headers.items() if k.lower()=='x-wp-totalpages'),1))
   total=int(next((v for k,v in headers.items() if k.lower()=='x-wp-total'),len(rows)))
   for p in rows:
-   r=parse_thor(p);r.update(key='landvelar-api-'+str(p['id']),supplier=supplier,collector='v0.4')
+   r=parse_thor(p);r.update(key=key+'-api-'+str(p['id']),supplier=supplier,collector='v0.4')
    # Public zero prices are not free products. No signed-in prices are accessed.
    if r['price'] is None:r['price_status']='Verð vantar; óska eftir verði hjá birgi'
    records[r['key']]=r

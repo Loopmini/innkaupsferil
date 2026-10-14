@@ -22,6 +22,8 @@ HOSTS={'thor.is','www.husa.is','byko.is','www.sindri.is','www.fossberg.is','www.
 SOURCES={'thor':('Þór hf.','https://thor.is'),'husa':('Húsasmiðjan','https://www.husa.is'),'byko':('BYKO','https://byko.is'),'sindri':('Sindri','https://www.sindri.is'),'fossberg':('Fossberg','https://www.fossberg.is'),'isol':('Ísól','https://www.isol.is')}
 
 SOURCES.update({'rubix':('Rúbix','https://rubix.is'),'vatnsvirkinn':('Vatnsvirkinn','https://vatnsvirkinn.is'),'vatnogveitur':('Vatn og veitur','https://www.vatnogveitur.is'),'ronning':('Röning','https://www.ronning.is'),'iskraft':('Ískraft','https://iskraft.husa.is'),'reykjafell':('Reykjafell','https://www.reykjafell.is'),'hampidjan':('Hampiðjan','https://verslun.hampidjan.is'),'isfell':('Ísfell','https://isfell.is'),'landvelar':('Landvélar','https://landvelar.is'),'barki':('Barki','https://www.barki.is'),'wurth':('Würth','https://wurth.is')})
+SOURCES['tengi']=('Tengi','https://www.tengi.is')
+SOURCES['dynjandi']=('Dynjandi','https://www.dynjandi.is')
 HOSTS.update(urlsplit(origin).hostname for _,origin in SOURCES.values())
 
 def now():return datetime.now(timezone.utc).isoformat()
@@ -116,6 +118,8 @@ def parse_thor(p):
  pack(r,r['name'])
  r['availability']='Til samkvæmt birgjaviðmóti' if p.get('is_in_stock') else 'Ekki á lager samkvæmt birgjaviðmóti'
  r['note']='Opinbert Store API. Verð nær til sölueiningar; pakkastærð og VSK eru ekki áætluð. '+('Afbrigðisvara; grunnverð ekki notað sem verð afbrigðis.' if p.get('type')=='variable' else '')
+ from product_extras import image_url
+ r['image_url']=next((u for img in p.get('images',[]) if isinstance(img,dict) and (u:=image_url(img.get('src','')))), '')
  r['product_type']=p.get('type','')
  return r
 
@@ -131,6 +135,8 @@ def parse_husa(body,url):
  if price:
   value=float(price[1].replace('.','').replace(',','.'))
   if value>0:r.update(price=value,vat_included=True,price_status='Birt vefverð með VSK; skatthlutfall óstaðfest')
+ from product_extras import page_image
+ r['image_url']=page_image(body,url)
  pack(r,name)
  r['availability']='Ekki til á vef samkvæmt birgi' if 'Ekki til á vef' in plain(region) else 'Lagerstaða þarf staðfestingu hjá birgi'
  r['note']='Vörusíða lesin sjálfvirkt. VSK innifalinn samkvæmt söluskilmálum; skatthlutfall og magn einingar eru ekki áætluð.'
@@ -202,7 +208,7 @@ def run(root=ROOT,husa_limit=100,selected=None):
    if key=='thor':return key,thor(c,previous,statuses.get(key,{}),lambda i:progress(key,i))
    if key=='husa':return key,husa(c,previous,statuses.get(key,{}),lambda i:progress(key,i),husa_limit)
    from supplier_catalogues import DIRECTORIES, collect
-   if key in DIRECTORIES or key=='landvelar':return key,collect(key,supplier,c,previous,statuses.get(key,{}),lambda i:progress(key,i))
+   if key in DIRECTORIES or key in ('landvelar','dynjandi','tengi'):return key,collect(key,supplier,c,previous,statuses.get(key,{}),lambda i:progress(key,i))
    return key,(previous,dict(status='not_connected',scope='Sérstök vörutenging ekki tilbúin',loaded=len(previous),checked_at=now()))
   except Exception as e:
    return key,(previous,{**statuses.get(key,{}),'status':'blocked' if isinstance(e,HTTPError) and e.code in (401,403,429) else 'error','error':str(e),'loaded':len(previous),'checked_at':now(),'scope':'Fyrri athuganir varðveittar; engin fersk uppfærsla'})

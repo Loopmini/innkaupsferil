@@ -38,6 +38,8 @@ def connect():
         CREATE TABLE IF NOT EXISTS items (
         project_id INTEGER, offer_id INTEGER, quantity REAL NOT NULL,
         PRIMARY KEY(project_id, offer_id));
+        CREATE TABLE IF NOT EXISTS product_overrides (offer_id INTEGER PRIMARY KEY, category TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS product_images (offer_id INTEGER PRIMARY KEY, url TEXT NOT NULL, checked_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS bom_lists (
         id INTEGER PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL,
         rows_json TEXT NOT NULL, selections_json TEXT NOT NULL DEFAULT '{}', sheet TEXT);''')
@@ -132,7 +134,43 @@ def catalogue():
         r['unit_price'] = r['net_price'] / r['pack_quantity']
         r['match_key'] = ('gtin:' + r['gtin']) if r['gtin'] else ('mpn:' + r['brand'].casefold() + ':' + r['manufacturer_part'].casefold()) if r['brand'] and r['manufacturer_part'] else 'unmatched:' + str(r['id'])
     extra, metadata = read_supplements()
+    with connect() as db:
+        overrides={r['offer_id']:r['category'] for r in db.execute('SELECT * FROM product_overrides')}
+        images={r['offer_id']:r['url'] for r in db.execute('SELECT * FROM product_images')}
+    from product_extras import image_url
+    for r in offers+extra:
+        r['manual_category']=overrides.get(r['id'],'')
+        r['image_url']=image_url(r.get('image_url') or images.get(r['id'],''))
     return dict(offers=offers + extra, projects=projects, items=items, history=history, suppliers=SUPPLIERS, metadata=metadata)
+
+def save_classification(oid, category):
+    if not isinstance(category,str) or len(category.strip())>120:
+        raise ValueError('Flokkur má vera mest 120 stafir.')
+    if not any(o['id']==oid for o in catalogue()['offers']):raise ValueError('Vara fannst ekki.')
+    with connect() as db:
+        if category.strip():db.execute('INSERT OR REPLACE INTO product_overrides VALUES(?,?)',(oid,category.strip()))
+        else:db.execute('DELETE FROM product_overrides WHERE offer_id=?',(oid,))
+
+
+def supplier_image(oid):
+    offer=next((o for o in catalogue()['offers'] if o['id']==oid),None)
+    if not offer:raise ValueError('Vara fannst ekki.')
+    if offer.get('image_url'):return offer['image_url']
+    # Only known market product routes, never invoice/category links or arbitrary input.
+    if offer.get('source_kind')!='market' or offer.get('link_kind')=='category':return ''
+    with connect() as db:
+        cached=db.execute('SELECT * FROM product_images WHERE offer_id=?',(oid,)).fetchone()
+    if cached and (datetime.now(timezone.utc)-datetime.fromisoformat(cached['checked_at'])).total_seconds()<86400:return cached['url']
+    from market_sync import Client,SOURCES
+    from product_extras import page_image
+    from urllib.parse import urlsplit
+    url=offer.get('url','');origin=next((origin for name,origin in SOURCES.values() if name==offer['supplier'] and urlsplit(origin).hostname==urlsplit(url).hostname),None)
+    if not origin:return ''
+    try:body,_=Client(origin).get(url)
+    except (OSError,ValueError) as e:raise ValueError('Ekki tókst að sækja mynd frá birgi.') from e
+    image=page_image(body,url)
+    with connect() as db:db.execute('INSERT OR REPLACE INTO product_images VALUES(?,?,?)',(oid,image,datetime.now(timezone.utc).isoformat()))
+    return image
 
 SYNC_THREAD = None
 SYNC_MUTEX = threading.Lock()
@@ -229,6 +267,11 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError('Ógild beiðni.')
+            if self.path == '/api/product-classification':
+                save_classification(int(data['id']),data.get('category',''))
+                return self.send({'ok':True})
+            if self.path == '/api/product-image':
+                return self.send({'image_url':supplier_image(int(data['id']))})
             if self.path == '/api/refresh-market':
                 return self.send({'started': start_sync()})
             if self.path == '/api/import':
