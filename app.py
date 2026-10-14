@@ -14,6 +14,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 from supplements import read_supplements
+import ai_support
+import taxonomy
 
 ROOT = Path(__file__).parent
 DB = Path(os.environ.get('INNKAUP_DB', ROOT / 'data/catalog.sqlite'))
@@ -38,6 +40,7 @@ def connect():
         CREATE TABLE IF NOT EXISTS items (
         project_id INTEGER, offer_id INTEGER, quantity REAL NOT NULL,
         PRIMARY KEY(project_id, offer_id));
+        CREATE TABLE IF NOT EXISTS product_enrichment (offer_id INTEGER PRIMARY KEY, data TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS product_overrides (offer_id INTEGER PRIMARY KEY, category TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS product_details (offer_id INTEGER PRIMARY KEY, data TEXT NOT NULL, checked_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS product_images (offer_id INTEGER PRIMARY KEY, url TEXT NOT NULL, checked_at TEXT NOT NULL);
@@ -136,6 +139,7 @@ def catalogue():
         r['match_key'] = ('gtin:' + r['gtin']) if r['gtin'] else ('mpn:' + r['brand'].casefold() + ':' + r['manufacturer_part'].casefold()) if r['brand'] and r['manufacturer_part'] else 'unmatched:' + str(r['id'])
     extra, metadata = read_supplements()
     with connect() as db:
+        enrichments={r['offer_id']:json.loads(r['data']) for r in db.execute('SELECT * FROM product_enrichment')}
         overrides={r['offer_id']:r['category'] for r in db.execute('SELECT * FROM product_overrides')}
         images={r['offer_id']:r['url'] for r in db.execute('SELECT * FROM product_images')}
         details={r['offer_id']:json.loads(r['data']) for r in db.execute('SELECT * FROM product_details')}
@@ -144,6 +148,10 @@ def catalogue():
         r.update(details.get(r['id'],{}))
         r['manual_category']=overrides.get(r['id'],'')
         r['image_url']=image_url(r.get('image_url') or images.get(r['id'],''))
+        taxonomy.enrich(r,enrichments.get(r['id'],{}))
+    metadata['taxonomy']=taxonomy.TREE
+    metadata['specification_fields']=taxonomy.SPEC_FIELDS
+    metadata['sync']=sync_status()
     return dict(offers=offers + extra, projects=projects, items=items, history=history, suppliers=SUPPLIERS, metadata=metadata)
 
 def save_classification(oid, category):
@@ -161,7 +169,7 @@ def supplier_details(oid):
     if offer.get('source_kind')!='market' or offer.get('link_kind')=='category':return {}
     with connect() as db:
         cached=db.execute('SELECT * FROM product_details WHERE offer_id=?',(oid,)).fetchone()
-    if cached and (datetime.now(timezone.utc)-datetime.fromisoformat(cached['checked_at'])).total_seconds()<86400:return json.loads(cached['data'])
+    if cached and json.loads(cached['data']).get('details_version',0)>=3 and (datetime.now(timezone.utc)-datetime.fromisoformat(cached['checked_at'])).total_seconds()<86400:return json.loads(cached['data'])
     from market_sync import Client,SOURCES
     from product_extras import page_details
     url=offer.get('url','');origin=next((origin for name,origin in SOURCES.values() if name==offer['supplier'] and urlsplit(origin).hostname==urlsplit(url).hostname),None)
@@ -185,7 +193,8 @@ SYNC_STOP = threading.Event()
 def sync_status():
     path = ROOT / 'data/market-status.json'
     data = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'sources': {}}
-    from market_sync import is_running
+    from market_sync import is_running,SOURCES
+    data['available_sources']=[{'key':k,'name':v[0]} for k,v in SOURCES.items()]
     data['running'] = bool(SYNC_THREAD and SYNC_THREAD.is_alive()) or is_running(ROOT / 'data/market-sync.lock')
     full=ROOT/'data/full-sync.json'
     if full.exists():
@@ -194,8 +203,13 @@ def sync_status():
             data['full'].update(running=False,status='interrupted')
     return data
 
-def start_sync(mode='batch'):
+def start_sync(mode='batch',selected=None):
     global SYNC_THREAD
+    from market_sync import SOURCES
+    if selected is not None:
+        if not isinstance(selected,list) or not selected or any(not isinstance(k,str) or k not in SOURCES for k in selected):
+            raise ValueError('Veldu að minnsta kosti einn þekktan birgi.')
+        selected=list(dict.fromkeys(selected))
     with SYNC_MUTEX:
         if sync_status()['running']:
             return False
@@ -204,8 +218,8 @@ def start_sync(mode='batch'):
                 from market_sync import run
                 if mode=='full':
                     from full_sync import full_pass
-                    full_pass(ROOT,SYNC_STOP)
-                else:run(root=ROOT)
+                    full_pass(ROOT,SYNC_STOP,selected)
+                else:run(root=ROOT,selected=selected)
             except Exception as error:
                 print('Market refresh failed:', error, flush=True)
         SYNC_STOP.clear()
@@ -236,6 +250,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == '/api/ai-status':
+            return self.send(ai_support.status())
         if path == '/api/boms':
             with connect() as db:
                 rows=[dict(r) for r in db.execute('SELECT id,name,created_at,sheet FROM bom_lists ORDER BY id DESC')]
@@ -248,7 +264,7 @@ class Handler(BaseHTTPRequestHandler):
             value=dict(r);value['rows']=json.loads(value.pop('rows_json'));value['selections']=json.loads(value.pop('selections_json'))
             return self.send(value)
         if path == '/api/bom-template':
-            return self.send('heiti,magn,eining,birgir,vorunumer,gtin,framleidandi,mpn\n5mm stálbor,20,stk,,,,,\n'.encode('utf-8-sig'),content_type='text/csv; charset=utf-8')
+            return self.send('heiti,magn,eining,birgir,vorunumer,gtin,framleidandi,mpn,thykkt_mm,breidd_mm,lengd_mm,styrkleikaflokkur,yfirbordsmedhondlun,efni,stadall\n5mm stálbor,20,stk,,,,,,,,,,,,\n'.encode('utf-8-sig'),content_type='text/csv; charset=utf-8')
         if path == '/api/market-history':
             key=parse_qs(urlsplit(self.path).query).get('key',[''])[0]
             dbpath=ROOT/'data/market-history.sqlite'
@@ -263,7 +279,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(catalogue())
         if path == '/api/template':
             return self.send((','.join(FIELDS) + '\n').encode(), content_type='text/csv; charset=utf-8')
-        files = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
         if path in files:
             name, kind = files[path]
             return self.send((ROOT / 'static' / name).read_bytes(), content_type=kind + '; charset=utf-8')
@@ -283,13 +299,73 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError('Ógild beiðni.')
+            if self.path == '/api/product-enrichment':
+                oid=int(data['id'])
+                if not any(o['id']==oid for o in catalogue()['offers']):raise ValueError('Vara fannst ekki.')
+                value=taxonomy.validate_override(data)
+                with connect() as db:
+                    if data.get('reset') is True:
+                        db.execute('DELETE FROM product_enrichment WHERE offer_id=?',(oid,))
+                    else:
+                        db.execute('INSERT OR REPLACE INTO product_enrichment(offer_id,data) VALUES(?,?)',(oid,json.dumps(value,ensure_ascii=False)))
+                return self.send({'ok':True})
+            if self.path == '/api/bom-add':
+                offer=next((o for o in catalogue()['offers'] if o['id']==int(data['offer_id'])),None)
+                if not offer:raise ValueError('Vara fannst ekki.')
+                quantity=number(data.get('quantity'),'Magn',True)
+                if quantity>1e9:raise ValueError('Magn er of hátt.')
+                unit=data.get('unit')
+                if unit not in ('stk','m','m2','m3','kg','l'):raise ValueError('Veldu einingu fyrir BOM.')
+                with connect() as db:
+                    bid=int(data.get('id') or 0)
+                    if bid:
+                        current=db.execute('SELECT rows_json,selections_json FROM bom_lists WHERE id=?',(bid,)).fetchone()
+                        if not current:raise ValueError('BOM fannst ekki.')
+                        rows=json.loads(current['rows_json']);selections=json.loads(current['selections_json'])
+                    else:
+                        name=str(data.get('name','')).strip()
+                        if not name or len(name)>120:raise ValueError('Heiti BOM þarf 1–120 stafi.')
+                        bid=db.execute('INSERT INTO bom_lists(name,created_at,rows_json,sheet) VALUES(?,?,?,?)',
+                            (name,datetime.now(timezone.utc).isoformat(),'[]','Valið úr vörugrunni')).lastrowid
+                        rows=[];selections={}
+                    if len(rows)>=500:raise ValueError('Hámark 500 BOM-línur.')
+                    lid=str(max((int(r['line_id']) for r in rows),default=0)+1)
+                    row={k:offer.get(k,'') for k in ('name','gtin','brand','manufacturer_part')}
+                    # Supplier SKU is a constraint only when no global product identifier exists.
+                    global_id=bool(row['gtin'] or row['brand'] and row['manufacturer_part'])
+                    row.update(line_id=lid,quantity=quantity,unit=unit,source_rows=[],reference_offer_id=offer['id'],
+                        supplier='' if global_id else offer.get('supplier',''),sku='' if global_id else offer.get('sku',''),
+                        specifications=offer.get('specifications',{}),classification_id=offer['classification']['id'])
+                    rows.append(row);selections[lid]=[offer['id']]
+                    db.execute('UPDATE bom_lists SET rows_json=?,selections_json=? WHERE id=?',
+                        (json.dumps(rows,ensure_ascii=False),json.dumps(selections),bid))
+                return self.send({'id':bid,'line_id':lid})
+            if self.path == '/api/ai-review':
+                offer = next((o for o in catalogue()['offers'] if o['id'] == int(data['id'])), None)
+                if not offer:raise ValueError('Vara fannst ekki.')
+                return self.send(ai_support.review(offer, data.get('categories')))
+            if self.path == '/api/ai-bom':
+                with connect() as db:
+                    row = db.execute('SELECT rows_json FROM bom_lists WHERE id=?', (int(data['id']),)).fetchone()
+                if not row:raise ValueError('BOM fannst ekki.')
+                line = next((r for r in json.loads(row[0]) if r['line_id'] == data.get('line_id')), None)
+                if not line:raise ValueError('BOM-lína fannst ekki.')
+                ids = data.get('candidates')
+                if not isinstance(ids, list) or len(ids) > 40 or any(type(i) is not int for i in ids):
+                    raise ValueError('Hámark 40 vörutillögur í beiðni.')
+                offers = [o for o in catalogue()['offers'] if o['id'] in ids and o.get('source_kind') not in ('purchase', 'reference')]
+                return self.send(ai_support.bom_help(line, offers))
             if self.path == '/api/product-classification':
                 save_classification(int(data['id']),data.get('category',''))
                 return self.send({'ok':True})
             if self.path == '/api/product-image':
-                return self.send(supplier_details(int(data['id'])))
+                oid=int(data['id']);details=supplier_details(oid)
+                if details:
+                    offer=next(o for o in catalogue()['offers'] if o['id']==oid)
+                    details.update({k:offer[k] for k in ('classification','specifications','specification_evidence','specification_conflicts','missing_specifications','search_tags','product_enrichment')})
+                return self.send(details)
             if self.path == '/api/refresh-market':
-                return self.send({'started': start_sync('full' if data.get('mode')=='full' else 'batch')})
+                return self.send({'started': start_sync('full' if data.get('mode')=='full' else 'batch',data.get('sources'))})
             if self.path == '/api/stop-sync':
                 SYNC_STOP.set()
                 return self.send({'ok':True})

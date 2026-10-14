@@ -32,13 +32,25 @@
       if(q.kind){if(a.diameter_mm!==q.diameter && !(a.diameters_mm||[]).includes(q.diameter))return false;}
       else {const dimensions=[...normalize(o.name).matchAll(/(?:^|[^\d.])(\d+(?:\.\d+)?)\s*mm\b/g)].map(m=>Number(m[1]));if(!dimensions.includes(q.diameter)&&a.diameter_mm!==q.diameter)return false;}
     }
-    const haystack=normalize([o.name,o.sku,o.brand,o.gtin,o.manufacturer_part,o.supplier,o.category,o.subcategory,o.description,...(o.supplier_categories||[])].join(' '));
+    const haystack=normalize([o.name,o.sku,o.brand,o.gtin,o.manufacturer_part,o.supplier,o.category,o.subcategory,o.description,...(o.supplier_categories||[]),...(o.search_tags||[]),...Object.values(o.specifications||{})].join(' '));
     return q.terms.every(t=>haystack.includes(t));
   }
+  function same(a,b){
+    const clean=v=>String(v||'').trim().toLowerCase(),digits=v=>clean(v).replace(/^0+/,'');
+    if(a.gtin&&b.gtin)return digits(a.gtin)===digits(b.gtin);
+    if(a.brand&&b.brand&&a.manufacturer_part&&b.manufacturer_part)return normalize(a.brand)===normalize(b.brand)&&clean(a.manufacturer_part)===clean(b.manufacturer_part);
+    return !!(a.sku&&b.sku&&a.supplier&&b.supplier&&normalize(a.supplier)===normalize(b.supplier)&&clean(a.sku)===clean(b.sku));
+  }
   function comparable(a,b){
+    const c=a.classification?.id,d=b.classification?.id;
+    if(a.id!==b.id&&c===d&&c?.startsWith('building.')&&!c.endsWith('.unspecified')&&!c.endsWith('.unknown')){
+      const x=a.specifications||{},y=b.specifications||{};
+      return ['thickness_mm','width_mm'].every(k=>x[k]!=null&&x[k]===y[k])&&Object.keys(x).every(k=>y[k]==null||x[k]===y[k]);
+    }
+
     const x=attributes(a),y=attributes(b);
     return a.id!==b.id&&x.kind==='drill'&&y.kind==='drill'&&x.diameter_mm!==null&&x.diameter_mm===y.diameter_mm&&x.usage&&x.usage===y.usage&&x.form==='single'&&y.form==='single';
   }
-  const api={normalize,attributes,parse,matches,comparable};
+  const api={normalize,attributes,parse,matches,comparable,same};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.ProductSearch=api;
 })(globalThis);
