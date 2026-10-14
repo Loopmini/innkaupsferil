@@ -127,3 +127,17 @@ Rúbix-tengingin les nákvæmt verð úr aðalverðreit; frá-verð afbrigða er
 Heimildir: https://rubix.is/ · https://solution.rubix.com/service/e-procurement/ · https://vatnsvirkinn.is/ · https://www.vatnogveitur.is/ · https://www.ronning.is/ · https://iskraft.husa.is/ · https://www.reykjafell.is/robots.txt · https://verslun.hampidjan.is/vorur · https://isfell.is/vorulistar/ · https://landvelar.is/vorur/ · https://www.barki.is/ · https://wurth.is/ · https://byko.is/serlausnir/verdlistar
 
 Könnun er einnig í `seeds/supplier-connections.json` og birgjakortum viðmótsins. Opinber vefverslun sannar hvorki API-aðgang né heimild til að sækja samningsverð. Enginn póstur eða aðgangsumsókn hefur verið send.
+
+## Útgáfa 0.5 – flokkayfirlit og BOM
+
+Vörugrunnurinn opnast með flokkakortum í stað alls vörulistans. Leit virkar áfram yfir grunninn, og flokkaval opnar vörurnar. Flokkun yfirlitsins er reglubundin greining úr heitum og birgjaflokkum; hún breytir ekki upprunalegu reikningsflokkuninni. Óvissar vörur haldast í „Annað og óflokkað“.
+
+**BOM-samanburður** tekur við UTF-8 CSV/TSV, töflu límdri úr Excel og XLSX (fyrsta blað, haus í fyrstu línu, engar formúlur). Hámark er 500 línur og 3 MB. Skyldudálkar eru `heiti,magn,eining`; valfrjálst `birgir,vorunumer,gtin,framleidandi,mpn`. Ensk dálkaheiti eru einnig studd. Einingar: `stk,m,m2,m3,kg,l`. Vörunúmer og strikamerki verða að vera texti í Excel til að varðveita núll. Alveg eins línur eru sameinaðar fyrir pakkareikning.
+
+Vöruleit í BOM notar sama stærðar-/efnisgrunn og almenn leitarvirkni. Beint GTIN, framleiðandi + MPN eða birgir + vörunúmer er sjálfvirk samsvörun. Textaleit er tillaga, ekki sjálfkrafa staðfest jafngildi; notandi samþykkir vörufærslurnar áður en þær fara í heildartölur. Listar og samþykktar vörur vistast í SQLite og eru einkagögn.
+
+Kostnaður = heilar pakkningar sem þarf × verð pakkningar án VSK. Samanburður krefst þekkts verðs, VSK, pakkamagns, sömu einingar/gjaldmiðils og athugunar innan 30 daga. Vörur merktar ekki á lager eru ekki valdar. Óstaðfest lagerstaða er sýnd og er ekki afhendingarloforð. Núll er aldrei staðgengill fyrir óþekkt verð.
+
+Niðurstöður sýna lægsta reiknanlega kostnað **á hverri línu**, skiptingu milli birgja og kostnað/þekju fyrir kaup hjá einum birgi. Ófullkomin körfa sýnir aðeins hlutakostnað, aldrei lægsta heildarverð. Þetta er ekki heildarbestun yfir frakt, magni háða afslætti eða lágmarkspantanir. Engin gengisumbreyting eða pöntunarsending. CSV-útflutningur inniheldur vöruval og kostnað þar sem hann er reiknanlegur.
+
+Prófanir: `python -m unittest discover -s tests`, `node tests/search.test.js` og `node tests/bom.test.js`. BOM-prófin ná yfir pakkarúnnun, ófullkomnar körfur, samþykki, gjaldmiðla, einingar, ferskleika og XLSX-formúluvarnir.
