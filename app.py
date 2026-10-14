@@ -162,7 +162,7 @@ def supplier_details(oid):
     if offer.get('source_kind')!='market' or offer.get('link_kind')=='category':return {}
     with connect() as db:
         cached=db.execute('SELECT * FROM product_details WHERE offer_id=?',(oid,)).fetchone()
-    if cached and (datetime.now(timezone.utc)-datetime.fromisoformat(cached['checked_at'])).total_seconds()<86400:return json.loads(cached['data'])
+    if cached and json.loads(cached['data']).get('details_version',0)>=2 and (datetime.now(timezone.utc)-datetime.fromisoformat(cached['checked_at'])).total_seconds()<86400:return json.loads(cached['data'])
     from market_sync import Client,SOURCES
     from product_extras import page_details
     url=offer.get('url','');origin=next((origin for name,origin in SOURCES.values() if name==offer['supplier'] and urlsplit(origin).hostname==urlsplit(url).hostname),None)

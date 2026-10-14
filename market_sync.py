@@ -120,6 +120,8 @@ def parse_thor(p):
  r['note']='Opinbert Store API. Verð nær til sölueiningar; pakkastærð og VSK eru ekki áætluð. '+('Afbrigðisvara; grunnverð ekki notað sem verð afbrigðis.' if p.get('type')=='variable' else '')
  from product_extras import image_url
  r['image_url']=next((u for img in p.get('images',[]) if isinstance(img,dict) and (u:=image_url(img.get('src','')))), '')
+ from product_extras import page_details
+ r['documents']=page_details((p.get('description') or '')+' '+(p.get('short_description') or ''),r['url'])['documents']
  r['description']=plain(p.get('short_description') or p.get('description'))[:8000]
  r['supplier_categories']=[plain(c.get('name')) for c in cats if c.get('name')]
  r['product_type']=p.get('type','')

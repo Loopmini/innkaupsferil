@@ -42,3 +42,16 @@ class ExtrasTest(unittest.TestCase):
    with urllib.request.urlopen('http://127.0.0.1:'+str(server.server_port)+'/') as response:
     csp=response.headers['Content-Security-Policy'];self.assertIn("img-src 'self' https:",csp);self.assertIn("script-src 'self'",csp)
   finally:server.shutdown();server.server_close()
+ def test_pdf_links_are_deduplicated_and_non_product_legal_links_excluded(self):
+  from product_extras import page_details
+  b='<a href="/manual.pdf">Handbók</a><a href="/manual.pdf">PDF</a><a href="javascript:alert(1)">Data</a><a href="/privacy.pdf">Privacy</a>'
+  r=page_details(b,'https://supplier.is/product')
+  self.assertEqual(r['documents'],[{'url':'https://supplier.is/manual.pdf','name':'Handbók','source_url':'https://supplier.is/product'}])
+ def test_wix_documents_scoped_to_current_product_and_public_files(self):
+  from product_extras import page_details
+  public={'fileData':{'src':{'id':'ugd/technical.pdf','private':False},'name':'Tækniblað.pdf'}}
+  private={'fileData':{'src':{'id':'ugd/secret.pdf','private':True},'name':'Secret.pdf'}}
+  products=[{'urlPart':'other','additionalInfo':[{'description':json.dumps(public)}]},{'urlPart':'product','additionalInfo':[{'description':json.dumps([public,private])}]}]
+  body='<script id="wix-warmup-data" type="application/json">'+json.dumps(products)+'</script>'
+  docs=page_details(body,'https://www.barki.is/vorur/product')['documents']
+  self.assertEqual(len(docs),1);self.assertEqual(docs[0]['url'],'https://static.wixstatic.com/ugd/technical.pdf')

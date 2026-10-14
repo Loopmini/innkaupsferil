@@ -190,3 +190,10 @@ Sjálfvirk flokkun notar nú nákvæm vöruheiti, upphaf vörulýsingar og birgj
 Vöruspjaldið sýnir flokkunargrundvöll og textann sem styður hana. Handvirkar leiðréttingar hafa alltaf forgang. Ófullnægjandi eða mótsagnakennd lýsing getur áfram skilað Annað og óflokkað; þetta er reglubundin tillaga, ekki staðfest bókhaldsflokkun eða tæknilegt jafngildi. Upprunaleg heiti, birgjaflokkar og verð breytast ekki.
 
 Nýju reglurnar gilda sjálfkrafa um fyrirliggjandi og ný gögn þegar forritið er endurhlaðið. Lýsingar sem eru aðeins vistaðar í annarri uppsetningu eru ekki aðgengilegar við þessa yfirferð, en sömu reglur gilda um þær þar. Prófanir: `node tests/groups.test.js` (22 tilvik) auk fyrri Python-, leitar-, BOM- og viðmótsprófa.
+
+
+## Gagnablöð frá birgja
+
+Vöruspjaldið sýnir „Gagnablöð og skjöl frá birgi“ með PDF-tenglum sem fundust á vörusíðunni eða í lýsingu vöruviðmóts. Opinber Wix-skjöl eru lesin úr tæknigögnum nákvæmrar vöru; einkamerkt skjöl eru ekki birt. Tenglar eru aðeins HTTPS, afrit eru sameinuð og þekkt persónuverndar-/skilmálaskjöl útilokuð. Skjal getur átt við vörufjölskyldu og þarf að yfirfara stærð/gerð hjá birgi. Engin fullyrðing um tæmandi skjalaþekju eða yfirferð á PDF-innihaldi.
+
+Eldri lýsigagnavistun er endurnýjuð þegar spjaldið opnast, svo skjöl geti bæst við. Barki 35-30-100024 er staðfest dæmi: RoflexDatasheet.pdf svaraði með application/pdf og PDF-skráarhaus. 45 Python-próf og fyrri DOM-próf standast. Gervigreindartenging er ekki virkjuð í þessari breytingu.
