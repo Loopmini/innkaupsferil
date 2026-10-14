@@ -32,7 +32,7 @@
       if(q.kind){if(a.diameter_mm!==q.diameter && !(a.diameters_mm||[]).includes(q.diameter))return false;}
       else {const dimensions=[...normalize(o.name).matchAll(/(?:^|[^\d.])(\d+(?:\.\d+)?)\s*mm\b/g)].map(m=>Number(m[1]));if(!dimensions.includes(q.diameter)&&a.diameter_mm!==q.diameter)return false;}
     }
-    const haystack=normalize([o.name,o.sku,o.brand,o.gtin,o.manufacturer_part,o.supplier,o.category,o.subcategory].join(' '));
+    const haystack=normalize([o.name,o.sku,o.brand,o.gtin,o.manufacturer_part,o.supplier,o.category,o.subcategory,o.description,...(o.supplier_categories||[])].join(' '));
     return q.terms.every(t=>haystack.includes(t));
   }
   function comparable(a,b){

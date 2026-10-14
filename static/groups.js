@@ -21,6 +21,6 @@ const rules=[
  ['Hífing, keðjur og veiðarfæri',/stroff|lyftibun|hif|kedj|tal[ií]|ka[ðd]al|veidarf|handfaer|bauj|\btog\b/],
  ['Byggingarefni',/timbur|steypu|einangr|byggingarefni|gips/]
 ];
-function classify(o){if(o.manual_category)return o.manual_category;const name=S.normalize(o.name);let hit=rules.find(([,r])=>r.test(name));if(!hit)hit=rules.find(([,r])=>r.test(S.normalize([o.category,o.subcategory].join(' '))));return hit?hit[0]:'Annað og óflokkað';}
+function classify(o){if(o.manual_category)return o.manual_category;const name=S.normalize(o.name);let hit=rules.find(([,r])=>r.test(name));if(!hit)hit=rules.find(([,r])=>r.test(S.normalize([...(o.supplier_categories||[]),o.category,o.subcategory].join(' '))));if(!hit)hit=rules.find(([,r])=>r.test(S.normalize(o.description||'')));return hit?hit[0]:'Annað og óflokkað';}
 const api={classify,categories:rules.map(r=>r[0])};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.ProductGroups=api;
 })(globalThis);

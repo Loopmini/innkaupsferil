@@ -46,8 +46,8 @@ def parse_directory(key,supplier,body,url):
   m=re.search(r'Vörunúmer:\s*</[^>]+>\s*<[^>]+>(.*?)</',body,re.S|re.I)
   if m:sku=plain(m[1])
  r=base(key+'-directory-'+hashlib.sha256(url.encode()).hexdigest()[:20],supplier,name,url,sku)
- from product_extras import page_image
- r['image_url']=page_image(body,url)
+ from product_extras import page_details
+ r.update(page_details(body,url))
  r.update(price_status='Verð ekki innlesið',availability='Vara í vöruskrá; lagerstaða óstaðfest',
           note='Vöruskrá lesin án verðtengingar. Færsla getur verið vörufjölskylda; stærð, afbrigði og kaupverð þarf að staðfesta.',collector='v0.4',catalogue_only=True)
  if key=='rubix':
