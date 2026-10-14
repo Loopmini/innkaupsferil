@@ -39,3 +39,18 @@ class DirectoriesTest(unittest.TestCase):
  def test_cookie_heading_is_not_a_product_name(self):
   r=parse_directory('isfell','Ísfell','<h1>Vafraköku</h1><h1>Öryggishjálmur &#8211; GeckoHead</h1>','https://isfell.is/vorur/hjalmur/')
   self.assertEqual(r['name'],'Öryggishjálmur – GeckoHead')
+
+ def test_store_api_supplier_identity_and_cursor(self):
+  import json
+  from supplier_catalogues import collect
+  class Client:
+   origin='https://www.dynjandi.is'
+   def get(self,url):
+    assert 'page=2&' in url
+    return json.dumps([dict(id=1,name='Öryggishjálmur',sku='001',permalink=self.origin+'/vara/',type='simple',prices=dict(price='0',currency_minor_unit=0))]),{'X-WP-TotalPages':'3','X-WP-Total':'250'}
+  rows,state=collect('dynjandi','Dynjandi',Client(),[],{'next_page':2},lambda _:None)
+  self.assertEqual(rows[0]['supplier'],'Dynjandi')
+  self.assertEqual(rows[0]['key'],'dynjandi-api-1')
+  self.assertEqual(rows[0]['sku'],'001')
+  self.assertIsNone(rows[0]['price'])
+  self.assertEqual(state['next_page'],3)

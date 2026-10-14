@@ -106,6 +106,34 @@
       "url": "https://www.isol.is/",
       "finding": "Vefverslun til staðar; fyrri söfnun fékk HTTP 403.",
       "next_step": "Óska eftir vöruskrárútflutningi eða samþykktri gagnatengingu."
+    },
+    {
+      "key": "dynjandi",
+      "supplier": "Dynjandi",
+      "url": "https://www.dynjandi.is/",
+      "finding": "Öryggisbúnaður, persónuhlífar, vinnufatnaður og iðnaðarvörur. Opinbert vöruviðmót skilar vörum og birtum verðum.",
+      "next_step": "Tengt í 100 færslu lotum. VSK, afbrigði og pakkastærðir þarf að staðfesta fyrir kostnaðarsamanburð."
+    },
+    {
+      "key": "tengi",
+      "supplier": "Tengi",
+      "url": "https://www.tengi.is/",
+      "finding": "Lagnaefni, fittings og ryðfríir lokar í opinberri vöruskrá. Vörutenging ekki enn útfærð.",
+      "next_step": "Kanna vöruskrárútflutning og verðgrundvöll; efnisflokkur og stærðir verða að passa við BOM."
+    },
+    {
+      "key": "tandur",
+      "supplier": "Tandur",
+      "url": "https://www.tandur.is/",
+      "finding": "Hreinlætisefni, þrifaáhöld og rekstrarvörur. Opinber listaverð með VSK sjást á vef. Vörutenging ólokið.",
+      "next_step": "Kanna vöruskrárútflutning; aðgreina listaverð og samningsverð og varðveita sölupakkningar."
+    },
+    {
+      "key": "velasalan",
+      "supplier": "Vélasalan",
+      "url": "https://velasalan.is/",
+      "finding": "Dælur, vélar, varahlutir og búnaður fyrir sjó og iðnað. Opinber vöruflokkaskrá; vörutenging ólokið.",
+      "next_step": "Kanna vöruskrárútflutning og tæknigögn fyrir sambærilegar dælur og varahluti."
     }
   ]
 }
