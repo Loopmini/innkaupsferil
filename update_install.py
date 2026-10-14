@@ -10,7 +10,7 @@ def apply(source,target):
  if not (target/'app.py').is_file() or not (target/'static/index.html').is_file():raise ValueError('Þetta er ekki núverandi Njörður-forritsmappa (app.py og static/index.html þurfa að vera til).')
  manifest=json.loads((source/'update-manifest.json').read_text(encoding='utf-8'))
  entries=manifest['files']
- if not {'app.py','static/index.html','static/theme.css','static/theme-ui.js','static/boot-check.js','static/evidence-ui.js'}.issubset(entries):raise ValueError('Ófullkominn uppfærslupakki.')
+ if not {'app.py','static/index.html','static/theme.css','static/theme-ui.js','static/boot-check.js','static/evidence-ui.js','static/review-tools.js'}.issubset(entries):raise ValueError('Ófullkominn uppfærslupakki.')
  for name,digest in entries.items():
   p=Path(name)
   if p.is_absolute() or '..' in p.parts or p.parts[0] in ('data','.git') or p.name=='.env' or (target/p).is_symlink():raise ValueError('Óheimil skrá í uppfærslu: '+name)
@@ -52,6 +52,6 @@ if __name__=='__main__':
   backup=apply(Path(__file__).parent,target)
   print('Uppfærsla tókst. Afrit:',backup)
   print('Ræstu Starta-Windows.bat í:',Path(target).resolve())
-  print('Neðst í valmynd á að standa: v0.18 · nýtt viðmót virkt.')
+  print('Neðst í valmynd á að standa: v0.19 · nýtt viðmót virkt.')
  except Exception as error:
   print('UPPFÆRSLA STÖÐVUÐ:',error);sys.exit(1)

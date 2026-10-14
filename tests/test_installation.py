@@ -9,17 +9,17 @@ class InstallationTest(unittest.TestCase):
   server=ThreadingHTTPServer(('127.0.0.1',0),app.Handler);worker=threading.Thread(target=server.serve_forever,daemon=True);worker.start()
   try:
    base='http://127.0.0.1:'+str(server.server_port)
-   with urlopen(base+'/api/version') as r:self.assertEqual(json.load(r)['version'],'0.18')
+   with urlopen(base+'/api/version') as r:self.assertEqual(json.load(r)['version'],'0.19')
    for name,kind in [('theme.css','text/css'),('theme-ui.js','text/javascript'),('evidence-ui.js','text/javascript'),('boot-check.js','text/javascript')]:
-    with urlopen(base+'/'+name+'?v=018') as r:
+    with urlopen(base+'/'+name+'?v=019') as r:
      self.assertTrue(r.headers['Content-Type'].startswith(kind));self.assertEqual(r.headers['Cache-Control'],'no-store');self.assertEqual(r.read(),(app.ROOT/'static'/name).read_bytes())
-   with urlopen(base+'/') as r:self.assertIn(b'/theme.css?v=018',r.read())
+   with urlopen(base+'/') as r:self.assertIn(b'/theme.css?v=019',r.read())
   finally:server.shutdown();server.server_close();worker.join()
  def test_installer_preserves_data_and_rejects_partial_package_before_writes(self):
   with tempfile.TemporaryDirectory() as temp:
    root=Path(temp);source=root/'update';target=root/'current';source.mkdir();target.mkdir();(target/'static').mkdir();(target/'data').mkdir()
    (target/'app.py').write_text('old');(target/'static/index.html').write_text('old');(target/'data/catalog.sqlite').write_bytes(b'private-db');(target/'.env').write_text('private-key')
-   files=['app.py','static/index.html','static/theme.css','static/theme-ui.js','static/evidence-ui.js','static/boot-check.js'];manifest={}
+   files=['app.py','static/index.html','static/theme.css','static/theme-ui.js','static/evidence-ui.js','static/boot-check.js','static/review-tools.js'];manifest={}
    for name in files:
     p=source/name;p.parent.mkdir(exist_ok=True);p.write_text('new '+name);manifest[name]=hashlib.sha256(p.read_bytes()).hexdigest()
    (source/'update-manifest.json').write_text(json.dumps({'files':manifest}))

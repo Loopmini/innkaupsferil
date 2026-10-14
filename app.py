@@ -235,6 +235,7 @@ def sync_status():
     data['running'] = bool(SYNC_THREAD and SYNC_THREAD.is_alive()) or is_running(ROOT / 'data/market-sync.lock')
     if recorded_running and not data['running']:data['phase']='interrupted'
     data['stop_requested']=SYNC_STOP.is_set() and data['running']
+    for source in data.get('sources',{}).values():source.pop('coverage_seen',None)
     full=ROOT/'data/full-sync.json'
     if full.exists():
         data['full']=json.loads(full.read_text(encoding='utf-8'))
@@ -242,10 +243,10 @@ def sync_status():
             data['full'].update(running=False,status='interrupted')
     return data
 
-def start_sync(mode='batch',selected=None):
-    with DATA_LOCK:return start_sync_locked(mode,selected)
+def start_sync(mode='batch',selected=None,force=False):
+    with DATA_LOCK:return start_sync_locked(mode,selected,force)
 
-def start_sync_locked(mode='batch',selected=None):
+def start_sync_locked(mode='batch',selected=None,force=False):
     global SYNC_THREAD
     from market_sync import SOURCES
     if selected is not None:
@@ -260,8 +261,8 @@ def start_sync_locked(mode='batch',selected=None):
                 from market_sync import run
                 if mode=='full':
                     from full_sync import full_pass
-                    full_pass(ROOT,SYNC_STOP,selected)
-                else:run(root=ROOT,selected=selected,index_only=mode=='index')
+                    full_pass(ROOT,SYNC_STOP,selected,force=force)
+                else:run(root=ROOT,selected=selected,index_only=mode=='index',force=force)
             except Exception as error:
                 print('Market refresh failed:', error, flush=True)
         data_safety.create(ROOT,DB,'before_supplier_sync')
@@ -301,7 +302,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def get_response(self):
         path = urlsplit(self.path).path
-        if path == '/api/version':return self.send({'version':'0.18','theme':'compact-018','folder':str(ROOT.resolve()),'database':str(DB.resolve())})
+        if path == '/api/catalogue-export':
+            if sync_status()['running']:return self.send({'error':'Stöðvaðu innlestur áður en þú tekur heildarútflutning til að gögnin passi saman.'},409)
+            import catalogue_export
+            return self.send(catalogue_export.archive(__import__(__name__)),content_type='application/zip')
+        if path == '/api/version':return self.send({'version':'0.19','theme':'compact-019','folder':str(ROOT.resolve()),'database':str(DB.resolve())})
         if path == '/api/product-relations':
             oid=int(parse_qs(urlsplit(self.path).query).get('id',['0'])[0])
             return self.send(product_relations.listing(__import__(__name__),oid))
@@ -362,7 +367,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(catalogue())
         if path == '/api/template':
             return self.send((','.join(FIELDS) + '\n').encode(), content_type='text/csv; charset=utf-8')
-        files = {'/boot-check.js': ('boot-check.js','text/javascript'), '/evidence-ui.js': ('evidence-ui.js','text/javascript'), '/theme.css': ('theme.css','text/css'), '/theme-ui.js': ('theme-ui.js','text/javascript'), '/relations-ui.js': ('relations-ui.js','text/javascript'), '/interaction-ui.js': ('interaction-ui.js','text/javascript'), '/workspace-ui.js': ('workspace-ui.js','text/javascript'), '/families.js': ('families.js','text/javascript'), '/family-ui.js': ('family-ui.js','text/javascript'), '/supplier-ui.js': ('supplier-ui.js','text/javascript'), '/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/review-tools.js': ('review-tools.js','text/javascript'), '/boot-check.js': ('boot-check.js','text/javascript'), '/evidence-ui.js': ('evidence-ui.js','text/javascript'), '/theme.css': ('theme.css','text/css'), '/theme-ui.js': ('theme-ui.js','text/javascript'), '/relations-ui.js': ('relations-ui.js','text/javascript'), '/interaction-ui.js': ('interaction-ui.js','text/javascript'), '/workspace-ui.js': ('workspace-ui.js','text/javascript'), '/families.js': ('families.js','text/javascript'), '/family-ui.js': ('family-ui.js','text/javascript'), '/supplier-ui.js': ('supplier-ui.js','text/javascript'), '/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
         if path in files:
             name, kind = files[path]
             return self.send((ROOT / 'static' / name).read_bytes(), content_type=kind + '; charset=utf-8')
@@ -497,7 +502,7 @@ class Handler(BaseHTTPRequestHandler):
                     details.update({k:offer[k] for k in ('classification','specifications','specification_evidence','specification_conflicts','missing_specifications','search_tags','product_enrichment','identity','documents')})
                 return self.send(details)
             if self.path == '/api/refresh-market':
-                return self.send({'started': start_sync(data.get('mode') if data.get('mode') in ('full','index') else 'batch',data.get('sources'))})
+                return self.send({'started': start_sync(data.get('mode') if data.get('mode') in ('full','index') else 'batch',data.get('sources'),force=data.get('force') is True)})
             if self.path == '/api/stop-sync':
                 SYNC_STOP.set()
                 return self.send({'ok':True})
@@ -550,7 +555,7 @@ if __name__ == '__main__':
         raise SystemExit(1)
     connect().close()
     data_safety.create(ROOT,DB,'startup')
-    print('Njörður v0.18: http://127.0.0.1:8000 (local access only)', flush=True)
+    print('Njörður v0.19: http://127.0.0.1:8000 (local access only)', flush=True)
     print('Forritsmappa:',ROOT.resolve(),flush=True)
     print('Gagnagrunnur:',DB.resolve(),flush=True)
     if os.environ.get('INNKAUP_AUTO_REFRESH', '1') == '1':

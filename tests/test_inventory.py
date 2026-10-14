@@ -32,4 +32,4 @@ class InventoryTest(unittest.TestCase):
   with tempfile.TemporaryDirectory() as td:
    with patch('market_sync.Client') as client:
     r=m.run(Path(td),selected=['iskraft'],index_only=True)
-    client.assert_not_called();self.assertIn('ekki útfærð',r['sources']['iskraft']['index_check'])
+    client.assert_not_called();self.assertIn('iskraft',r['skipped'])
