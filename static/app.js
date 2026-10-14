@@ -2,8 +2,13 @@
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = (n, currency) => `${new Intl.NumberFormat('is-IS', {maximumFractionDigits:2}).format(n)} ${esc(currency)}`;
-const date = s => new Date(s).toLocaleDateString('is-IS');
-const stale = o => Date.now() - Date.parse(o.observed_at) > 30*86400000;
+const date = s => s ? new Date(s).toLocaleDateString('is-IS') : 'Dagsetning vantar';
+const stale = o => o.price !== null && Date.now() - Date.parse(o.observed_at) > 30*86400000;
+let pageLimit=60;
+const sourceLabel=o=>({market:'Opinn markaður',purchase:'Fyrri innkaup',reference:'Vörutilvísun',import:'Innlesið verð'}[o.source_kind]||'Innlesið verð');
+const priceCell=o=>o.unit_price!=null?`<strong>${money(o.unit_price,o.currency)} / ${esc(o.unit)}</strong><small>Án VSK · ${o.pack_quantity} ${esc(o.unit)} / pakkning</small><small>Pakkning: ${money(o.price,o.currency)} ${o.vat_included?'m. VSK':'án VSK'}</small>`:o.price!=null?`<strong>${money(o.price,o.currency)} / pakkning</strong><small>VSK óstaðfest · ekki í nettósamanburði</small>`:`<span class="muted">${esc(o.price_status||'Verð vantar')}</span>`;
+const attrsLabel=o=>{const a=ProductSearch.attributes(o);return a.kind==='drill'?[a.diameter_mm!=null?a.diameter_mm+' mm':'',({steel:'Stál / málmur',wood:'Tré',masonry:'Steinn / múr',tile:'Flísar / gler'})[a.usage]||'Notkun óstaðfest',a.inferred?'Greint úr lýsingu':'Staðfest vörueinkenni'].filter(Boolean).join(' · '):'';};
+const link=o=>o.url?`<a href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">${o.link_kind==='category'?'Birgjaflokkur ↗':'Skoða hjá birgi ↗'}</a>`:'Vörutengil vantar';
 let state = {offers:[], projects:[], items:[], history:[], suppliers:[]};
 async function api(path, data) {
   const res = await fetch('/api/' + path, data === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
@@ -19,23 +24,36 @@ async function refresh() {
   const projects = state.projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
   $('project-select').innerHTML=projects; $('add-project').innerHTML=projects;
   if(state.projects.some(p=>String(p.id)===oldProject)) $('project-select').value=oldProject;
-  const groups = new Map(); state.offers.forEach(o=>groups.set(o.match_key, (groups.get(o.match_key)||new Set()).add(o.supplier)));
-  $('stats').innerHTML = [[state.offers.length,'Vörufærslur'],[new Set(state.offers.map(o=>o.supplier)).size,'Birgjar með gögn'],[[...groups.values()].filter(s=>s.size>1).length,'Vörur hjá fleiri birgjum'],[state.offers.filter(stale).length,'Verð eldri en 30 daga']].map(([n,s])=>`<div class="stat"><span>${s}</span><strong>${n}</strong></div>`).join('');
+  const purchases=state.offers.filter(o=>o.source_kind==='purchase'),market=state.offers.filter(o=>o.source_kind==='market');
+  $('stats').innerHTML = [[purchases.length,'Vörur úr innkaupagögnum'],[market.length,'Vörufærslur af markaði'],[market.filter(o=>o.price!=null).length,'Birt opinber verð'],[market.filter(o=>o.price==null).length,'Markaðsverð vantar']].map(([n,label])=>`<div class="stat"><span>${label}</span><strong>${n}</strong></div>`).join('');
+  const m=state.metadata?.project;
+  $('coverage').textContent=(m?`${m.invoiceProducts} vöruskráningar úr ${m.invoiceRows} reikningslínum · ${m.dateStart}–${m.dateEnd}. Magn er reikningsmagn, ekki mæld notkun. Kaupverð vantar. `:'Einkagögn úr verkefni hafa ekki verið sett í þessa uppsetningu. ')+(state.metadata?.market?.scope||'')+' Nettóverð birtist aðeins þegar VSK og pakkastærð eru þekkt.';
   renderProducts(); renderProjects(); renderSuppliers();
 }
 function table(headers, rows) {return `<div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;}
 function renderProducts() {
-  const q=$('search').value.toLocaleLowerCase('is');
-  const rows=state.offers.filter(o=>(!$('category').value || (o.category||'Óflokkað')===$('category').value)&&(!$('supplier').value||o.supplier===$('supplier').value)&&[o.name,o.sku,o.brand,o.gtin,o.manufacturer_part,o.supplier].join(' ').toLocaleLowerCase('is').includes(q));
+  const query=ProductSearch.parse($('search').value);
+  const rows=state.offers.filter(o=>(!$('category').value || (o.category||'Óflokkað')===$('category').value)&&(!$('supplier').value||o.supplier===$('supplier').value)&&(!$('source-filter').value||o.source_kind===$('source-filter').value)&&ProductSearch.matches(o,query));
+  rows.sort((a,b)=>(a.source_kind==='market'?0:1)-(b.source_kind==='market'?0:1)||a.name.localeCompare(b.name,'is'));
   $('result-count').textContent=`${rows.length} vörufærslur`;
-  $('products').innerHTML=rows.length?table(['VARA / VÖRUNÚMER','BIRGIR','EININGAVERÐ ÁN VSK','VERÐHEIMILD',''],rows.map(o=>`<tr><td><b>${esc(o.name)}</b><small>${esc(o.sku)} · ${esc(o.category||'Óflokkað')}</small></td><td>${esc(o.supplier)}<small>${esc(o.brand)}</small></td><td><strong>${money(o.unit_price,o.currency)} / ${esc(o.unit)}</strong><small>${o.pack_quantity} ${esc(o.unit)} / pakkning · ${money(o.net_price,o.currency)}</small></td><td><span class="pill ${stale(o)?'warn':''}">${date(o.observed_at)}</span><small>${stale(o)?'Eldra en 30 daga':'Dagsetning heimildar'}</small></td><td><button data-detail="${o.id}">Skoða</button></td></tr>`).join('')):`<div class="empty"><h2>${state.offers.length?'Engar vörur passa við leitina':'Byggjum upp vörugrunninn'}</h2><p>${state.offers.length?'Prófaðu annað leitarorð eða síu.':'Lestu inn fyrsta verðlistann. Hér birtast svo vörur, birgjar og sambærileg einingaverð.'}</p></div>`;
+  const market=rows.filter(o=>o.source_kind==='market');
+  $('search-summary').textContent=`${market.length} markaðsfærslur hjá ${new Set(market.map(o=>o.supplier)).size} birgjum í gagnagrunni`+(market.length?': '+[...new Set(market.map(o=>o.supplier))].join(', '):'')+'. Leitin nær aðeins til innlesinna gagna; fyrri innkaup staðfesta ekki núverandi framboð.';
+  $('products').innerHTML=rows.length?table(['VARA / VÖRUNÚMER','BIRGIR / UPPRUNI','VERÐ','MAGN Í FYRRI GÖGNUM',''],rows.slice(0,pageLimit).map(o=>`<tr><td><b>${esc(o.name)}</b><small>${esc(o.sku||'Vörunúmer afbrigðis vantar')} · ${esc(o.subcategory||o.category||'Óflokkað')}</small><small>${esc(attrsLabel(o))}</small></td><td>${esc(o.supplier)}<small><span class="pill ${o.source_kind==='purchase'?'warn':''}">${sourceLabel(o)}</span></small></td><td>${priceCell(o)}<small>${esc(o.availability||'')} ${o.source_kind==='market'?'· Heimild skoðuð '+date(o.observed_at):''}</small></td><td>${o.source_kind==='purchase'?`${esc(o.quantity)} ${esc(o.unit)}<small>${date(o.observed_at)} · síðasta færsla</small>`:'—'}</td><td><button data-detail="${o.id}">Skoða</button></td></tr>`).join(''))+(rows.length>pageLimit?'<p><button id="show-more">Sýna fleiri</button></p>':''):`<div class="empty"><h2>Engar vörur passa við leitina</h2><p>Prófaðu annað leitarorð eða síu. Gögnin ná ekki enn til allra verslana.</p></div>`;
 }
 function detail(id) {
-  const o=state.offers.find(x=>x.id===id);
-  const peers=state.offers.filter(x=>x.match_key===o.match_key && x.currency===o.currency && x.unit===o.unit).sort((a,b)=>a.unit_price-b.unit_price);
-  const related=state.offers.filter(x=>x.category && x.category===o.category && x.match_key!==o.match_key).slice(0,12);
-  $('detail').innerHTML=`<h2>${esc(o.name)}</h2><p class="muted">${esc(o.brand)} · ${esc(o.manufacturer_part||o.sku)} · ${esc(o.category||'Óflokkað')}</p><p>${o.match_key.startsWith('unmatched:')?'Engin örugg vörutenging: GTIN eða framleiðandi ásamt framleiðslunúmeri vantar.':'Tenging byggð á '+(o.gtin?'GTIN':'framleiðanda og framleiðslunúmeri')+'. Samanburður sýnir sömu einingu og gjaldmiðil. Staðfestu vörulýsingu fyrir pöntun.'}</p>`+table(['BIRGIR','PAKKNING','VERÐ ÁN VSK / EININGU','HEIMILD',''],peers.map(x=>`<tr><td>${esc(x.supplier)}<small>${esc(x.sku)}</small></td><td>${x.pack_quantity} ${esc(x.unit)}</td><td>${money(x.unit_price,x.currency)} / ${esc(x.unit)}</td><td>${x.url?`<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">Vara hjá birgi ↗</a>`:'Innlesinn verðlisti'}<small>${date(x.observed_at)}</small></td><td><button data-add="${x.id}">Á lista</button></td></tr>`).join(''))+`<h3>Verðsaga · ${esc(o.supplier)}</h3>`+table(['DAGSETNING','VERÐ ÁN VSK / EININGU'],state.history.filter(h=>h.offer_id===id).map(h=>`<tr><td>${date(h.observed_at)}</td><td>${money(h.price/(h.vat_included?1+h.vat_rate/100:1)/h.pack_quantity,h.currency)} / ${esc(h.unit)}</td></tr>`).join(''))+(related.length?`<h3>Aðrar vörur í sama flokki</h3><p class="muted">Þetta eru ekki staðfestar staðgönguvörur. Skoða þarf stærðir, efni og notkun.</p><div class="cards">${related.map(x=>`<button data-detail="${x.id}">${esc(x.name)}<br><small>${esc(x.supplier)}</small></button>`).join('')}</div>`:'');
-  if(!$('detail-dialog').open) $('detail-dialog').showModal();
+  const o=state.offers.find(x=>x.id===id);if(!o)return;
+  const peers=state.offers.filter(x=>x.match_key===o.match_key && x.currency===o.currency && x.unit===o.unit);
+  const alternatives=state.offers.filter(x=>x.source_kind==='market'&&x.match_key!==o.match_key&&ProductSearch.comparable(o,x));
+  function offerRows(list){return table(['BIRGIR / VARA','VERÐ','HEIMILD / FRAMBOÐ',''],list.map(x=>`<tr><td>${esc(x.supplier)}<small>${esc(x.name)}</small><small>${esc(x.sku||'Vörunúmer vantar')}</small></td><td>${priceCell(x)}</td><td>${link(x)}<small>${esc(x.availability||'Lagerstaða óstaðfest')}</small><small>${date(x.observed_at)}</small></td><td>${x.net_price!=null?`<button data-add="${x.id}">Á lista</button>`:'—'}</td></tr>`).join(''));}
+  $('detail').innerHTML=`<h2>${esc(o.name)}</h2><p class="muted">${esc(o.supplier)} · ${esc(o.sku)} · ${sourceLabel(o)}</p><p>${esc(attrsLabel(o))}</p>`+offerRows(peers)+`<p class="muted">${esc(o.note||'')} ${esc(o.link_note||'')}</p>`;
+  if(o.source_kind==='purchase'){
+    $('detail').innerHTML+=`<h3>Reikningsmagn úr verkefninu</h3><p>${esc(o.quantity)} ${esc(o.unit)} samtals. ${Object.entries(o.quantities||{}).map(([y,q])=>`${esc(y)}: ${esc(q)} ${esc(o.unit)}`).join(' · ')}</p><p class="muted">Kaupverð vantar í V3. Ekki hægt að reikna sparnað gagnvart fyrri kaupum. ${esc(o.classification_status||'')}</p>`+table(['DAGSETNING','REIKNINGUR','MAGN','UPPRUNI'],(o.lines||[]).map(l=>`<tr><td>${date(l.date)}</td><td>${esc(l.invoice)}</td><td>${esc(l.quantity)} ${esc(l.unit)}</td><td>${esc(l.file)}<small>${esc(l.sourceSheet)} · lína ${esc(l.sourceRow)}</small></td></tr>`).join(''));
+  }
+  $('detail').innerHTML+=`<h3>Mögulegar sambærilegar vörur á opnum markaði</h3><p class="muted">Sama þvermál og notkun samkvæmt lýsingu. Þetta er ekki staðfest jafngildi: bera þarf saman lengd, festingu, efnisgerð, húðun og pakkastærð. HSS-G og kobaltborar eru ekki sjálfkrafa jafngildir.</p>`+(alternatives.length?offerRows(alternatives):'<p>Engar aðrar sambærilegar markaðsvörur eru komnar í grunninn.</p>');
+  const history=state.history.filter(h=>h.offer_id===id);
+  if(history.length)$('detail').innerHTML+='<h3>Verðsaga</h3>'+table(['DAGSETNING','VERÐ ÁN VSK / EININGU'],history.map(h=>`<tr><td>${date(h.observed_at)}</td><td>${money(h.price/(h.vat_included?1+h.vat_rate/100:1)/h.pack_quantity,h.currency)} / ${esc(h.unit)}</td></tr>`).join(''));
+  if(o.links?.length)$('detail').innerHTML+='<h3>Heimildir fyrri flokkunar</h3><p class="muted">Flokkunarheimild getur verið flokkasíða eða svipuð vara; hún er ekki sjálfkrafa staðfest vörutenging.</p>'+o.links.filter(l=>l.url).map(l=>`<p><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a><small> ${esc(l.evidence)}</small></p>`).join('');
+  if(!$('detail-dialog').open)$('detail-dialog').showModal();
 }
 function renderProjects() {
   const pid=Number($('project-select').value);
@@ -45,18 +63,21 @@ function renderProjects() {
   $('project-items').innerHTML=table(['VARA','BIRGIR','PAKKNINGAR','SAMTALS ÁN VSK',''],rows.map(i=>`<tr><td>${esc(i.offer.name)}<small>${i.offer.pack_quantity} ${esc(i.offer.unit)} / pakkning</small></td><td>${esc(i.offer.supplier)}</td><td><input aria-label="Fjöldi pakkninga fyrir ${esc(i.offer.name)}" type="number" min="0" step="1" value="${i.quantity}" data-qty="${i.offer.id}"></td><td>${money(i.quantity*i.offer.net_price,i.offer.currency)}</td><td><button data-remove="${i.offer.id}">Fjarlægja</button></td></tr>`).join(''))+`<div class="totals">${Object.entries(totals).map(([key,n])=>`${esc(key)}: <b>${money(n,key.split(' · ').pop())}</b>`).join('<br>')}</div><p class="muted">Áætlaður vörukostnaður á nýjustu innlesnu verðum. Flutningur og afslættir eru ekki innifalin. Þetta er innkaupalisti; engin pöntun er send.</p>`;
 }
 function renderSuppliers() {
-  $('supplier-cards').innerHTML=[...new Set([...state.suppliers,...state.offers.map(o=>o.supplier)])].sort().map(s=>{const rows=state.offers.filter(o=>o.supplier===s);return `<div class="card"><h3>${esc(s)}</h3><p class="muted">${rows.length} vörufærslur</p><span class="pill ${rows.length?'':'warn'}">${rows.length?'CSV-gögn innlesin':'Gögn vantar'}</span></div>`;}).join('');
+  $('supplier-cards').innerHTML=[...new Set([...state.suppliers,...state.offers.map(o=>o.supplier)])].sort().map(s=>{const rows=state.offers.filter(o=>o.supplier===s);return `<div class="card"><h3>${esc(s)}</h3><p class="muted">${rows.filter(o=>o.source_kind==='purchase').length} úr innkaupum · ${rows.filter(o=>o.source_kind==='market').length} af markaði</p><span class="pill ${rows.length?'':'warn'}">${rows.length?'Gögn í grunni':'Gögn vantar'}</span></div>`;}).join('');
 }
 async function run(fn){try{await fn();}catch(e){$('status').textContent=e.message;}}
 document.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
+  if(b.id==='show-more'){pageLimit+=60;renderProducts();}
+  if(b.dataset.query){$('search').value=b.dataset.query;$('category').value='';$('supplier').value='';$('source-filter').value='';pageLimit=60;renderProducts();}
   if(b.dataset.view){for(const id of ['catalogue','projects','suppliers'])$(id).hidden=id!==b.dataset.view;document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('active',n===b));$('heading').textContent={catalogue:'Vörugrunnur',projects:'Innkaupalistar',suppliers:'Birgjar'}[b.dataset.view];}
   if(b.dataset.close)$(b.dataset.close).close();
   if(b.dataset.detail)detail(Number(b.dataset.detail));
   if(b.dataset.add){$('detail-dialog').close();if(!state.projects.length){$('project-dialog').showModal();$('status').textContent='Stofnaðu fyrst verkefni og bættu svo vörunni á listann.';return;}$('add-offer').value=b.dataset.add;$('add-dialog').showModal();}
   if(b.dataset.remove)run(async()=>{await api('items',{project_id:Number($('project-select').value),offer_id:Number(b.dataset.remove),quantity:0});await refresh();});
 });
-$('search').addEventListener('input',renderProducts);['category','supplier'].forEach(id=>$(id).addEventListener('change',renderProducts));
+function filterChanged(){pageLimit=60;renderProducts();}
+$('search').addEventListener('input',filterChanged);['category','supplier','source-filter'].forEach(id=>$(id).addEventListener('change',filterChanged));
 $('project-select').addEventListener('change',renderProjects);
 $('project-items').addEventListener('change',e=>{if(e.target.dataset.qty)run(async()=>{try{await api('items',{project_id:Number($('project-select').value),offer_id:Number(e.target.dataset.qty),quantity:e.target.value});}finally{await refresh();}});});
 $('import-open').onclick=()=>{$('import-error').textContent='';$('import-dialog').showModal();};

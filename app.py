@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+from supplements import read_supplements
 
 ROOT = Path(__file__).parent
 DB = Path(os.environ.get('INNKAUP_DB', ROOT / 'data/catalog.sqlite'))
@@ -119,10 +120,12 @@ def catalogue():
         items = [dict(r) for r in db.execute('SELECT * FROM items')]
         history = [dict(r) for r in db.execute('SELECT * FROM history ORDER BY observed_at DESC, id DESC')]
     for r in offers:
+        r['source_kind'] = 'import'
         r['net_price'] = r['price'] / (1 + r['vat_rate'] / 100) if r['vat_included'] else r['price']
         r['unit_price'] = r['net_price'] / r['pack_quantity']
         r['match_key'] = ('gtin:' + r['gtin']) if r['gtin'] else ('mpn:' + r['brand'].casefold() + ':' + r['manufacturer_part'].casefold()) if r['brand'] and r['manufacturer_part'] else 'unmatched:' + str(r['id'])
-    return dict(offers=offers, projects=projects, items=items, history=history, suppliers=SUPPLIERS)
+    extra, metadata = read_supplements()
+    return dict(offers=offers + extra, projects=projects, items=items, history=history, suppliers=SUPPLIERS, metadata=metadata)
 
 class Handler(BaseHTTPRequestHandler):
     def send(self, data, status=200, content_type='application/json; charset=utf-8'):
@@ -142,7 +145,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(catalogue())
         if path == '/api/template':
             return self.send((','.join(FIELDS) + '\n').encode(), content_type='text/csv; charset=utf-8')
-        files = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/style.css': ('style.css', 'text/css')}
         if path in files:
             name, kind = files[path]
             return self.send((ROOT / 'static' / name).read_bytes(), content_type=kind + '; charset=utf-8')
@@ -173,8 +176,11 @@ class Handler(BaseHTTPRequestHandler):
                 elif self.path == '/api/items':
                     pid, oid = int(data['project_id']), int(data['offer_id'])
                     qty = number(data['quantity'], 'Magn')
-                    if not db.execute('SELECT 1 FROM projects WHERE id=?', (pid,)).fetchone() or not db.execute('SELECT 1 FROM offers WHERE id=?', (oid,)).fetchone():
+                    offer = next((o for o in catalogue()['offers'] if o['id'] == oid), None)
+                    if not db.execute('SELECT 1 FROM projects WHERE id=?', (pid,)).fetchone() or not offer:
                         raise ValueError('Verkefni eða vara fannst ekki.')
+                    if qty and offer['net_price'] is None:
+                        raise ValueError('Staðfest verð án VSK vantar; ekki hægt að reikna innkaupalista.')
                     if qty == 0:
                         db.execute('DELETE FROM items WHERE project_id=? AND offer_id=?', (pid, oid))
                     else:
@@ -190,4 +196,9 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     connect().close()
     print('Innkaupsferil: http://127.0.0.1:8000 (local access only)', flush=True)
-    ThreadingHTTPServer(('127.0.0.1', 8000), Handler).serve_forever()
+    server = ThreadingHTTPServer(('127.0.0.1', 8000), Handler)
+    import sys
+    if '--open' in sys.argv:
+        import threading, webbrowser
+        threading.Timer(0.5, lambda: webbrowser.open('http://127.0.0.1:8000')).start()
+    server.serve_forever()

@@ -2,15 +2,17 @@ import csv
 import io
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import app
 import collect
 
 class CatalogueTest(unittest.TestCase):
     def setUp(self):
+        self.supplement_patch=patch('app.read_supplements', return_value=([], {}));self.supplement_patch.start()
         self.temp=tempfile.TemporaryDirectory();self.old=app.DB;app.DB=Path(self.temp.name)/'test.sqlite'
     def tearDown(self):
-        app.DB=self.old;self.temp.cleanup()
+        app.DB=self.old;self.temp.cleanup();self.supplement_patch.stop()
     def row(self,**overrides):
         r=dict(supplier='Test supplier',sku='TEST-1',name='TEST ONLY',category='Test',brand='Test brand',gtin='',manufacturer_part='ABC',price='1240',currency='ISK',vat_included='true',vat_rate='24',pack_quantity='10',unit='stk',url='https://example.com/product',observed_at='2026-01-01')
         r.update(overrides);return r

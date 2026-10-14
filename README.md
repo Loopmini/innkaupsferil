@@ -5,7 +5,7 @@ Leitanlegur vörugrunnur og verðsamanburður fyrir innkaup. Fyrsta keyranlega �
 ## Keyra
 
 ```sh
-git clone https://github.com/Loopmini/innkaupsferil.git
+git clone --branch feature/procurement-catalogue https://github.com/Loopmini/innkaupsferil.git
 cd innkaupsferil
 python app.py
 ```
@@ -23,7 +23,19 @@ Opnaðu **http://127.0.0.1:8000**. Á Windows má nota `py app.py`. Gagnagrunnur
 - Bein tenging á innlesna vöruslóð og merking verðheimilda eldri en 30 daga.
 - Birgjayfirlit sýnir þekju innlesinna gagna.
 
-Grunnurinn er tómur við fyrstu ræsingu. Engin sýniverð eru látin líta út fyrir að vera raunveruleg verð. Birgjalistinn er upphafslisti; nýjir birgjar geta komið inn með CSV.
+Útgáfa 0.2 inniheldur lítið opinbert upphafsúrtak í `seeds/public-market.json`: sex 5 mm borafærslur, þar af þrjár með birtu verði. Þetta er ekki heildarskrá allra birgja. Upprunaslóð, athugunardagur, pakkastærð og staða verðs fylgja færslum. Verð vantar þar sem það náðist ekki; frá-verð fjölstærðavara er aldrei notað sem verð á 5 mm afbrigði. VSK-óstaðfest verð er sýnt sem birt pakkningarverð og útilokað frá nettósamanburði.
+
+### Gögn úr fyrra verkefni
+
+Ef `data/legacy-project.json` er til staðar les appið upprunalegt `fw-procurement-v1` JSON-úttak úr fyrri vefútgáfu. Innkaupalínur, magneiningar, birgjar, vörunúmer, flokkunarstaða og upprunareikningar varðveitast. Magn er reikningsmagn, ekki staðfest raunnotkun. Verð sem vantar er `null`, aldrei núll eða áætlað kaupverð. Einkagögn eru ekki í GitHub-safninu; þau fylgja aðeins einkaprófunarpakka þegar hann er afhentur sérstaklega. API sýnir þessi gögn aðeins á staðbundinni þjónustu.
+
+### Merkingarbær vöruleit
+
+Leita má að `5mm bor`, `5 mm bor`, `5,0mm stálbor` eða `5mm járnbor`. Stærð og notkun eru túlkuð sérstaklega. 5,5 mm, 15 mm, 5 Ah borvélar og borasett með óstaðfestum stærðum blandast ekki í 5 mm niðurstöður. Almenn textaleit notar öll leitarorð og styður íslenska stafi með eða án brodda.
+
+Greining úr vörulýsingu er merkt sem slík. Sambærilegir borar eru aðeins tillögur með sama þvermáli og notkun, ekki tæknilega staðfest jafngildi. Lengd, leggur, húðun, HSS-G/HSS-Co og pakkning þurfa áfram yfirferð.
+
+Á Windows má tvísmella á `Starta-Windows.bat`. Python þarf að vera uppsett. Vafrinn opnast sjálfkrafa og skipanaglugginn þarf að vera opinn.
 
 ## Verðlistar
 
@@ -60,6 +72,7 @@ Slóðaskráin hefur eina HTTPS-vöruslóð í hverri línu (hámark 100). Tóli
 ```sh
 python -m unittest discover -s tests -v
 node --check static/app.js
+node tests/search.test.js
 ```
 
 ## Takmarkanir og áframhald
@@ -68,4 +81,4 @@ node --check static/app.js
 
 Ekki hefur verið safnað öllum vörum/verðum allra birgja. Næstu verk eru staðfest tenging fyrir hvern birgjavef, sitemaps/API þar sem í boði, yfirferð staðgönguvara, tímasettar uppfærslur og auðkennd hýsing. Frakt, samningsafslættir, lágmarkspantanir og lagerstaða eru ekki í útreikningi. Innkaupalistar eru áætlanir byggðar á nýjustu innlesnu verðum, ekki verðtilboð eða pantanir.
 
-Heitið tengir þetta við Innkaupsferil-verkefnið. Engin tæknileg tenging við fyrri Sites-útgáfu eða ChatGPT-verkefnisgögn hefur verið sett upp; til þess þarf aðgang að þeim gögnum og skilgreint gagnaviðmót.
+Fyrri verkefnisgögn tengjast nú með staðbundnu JSON-úttaki. Það er afrit á tilteknum tíma, ekki lifandi tenging við ChatGPT eða Sites. Skipta má um `data/legacy-project.json` með nýrra úttaki sama sniðs þegar forritið er stöðvað. SQLite-innkaupalistar og innlesin verð varðveitast sérstaklega.
