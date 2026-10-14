@@ -51,7 +51,7 @@ def page_details(body,url):
             if tag=='a' and self.anchor is not None:self.links.append(self.anchor);self.anchor=None
             if tag=='script' and self.current is not None:self.scripts.append(self.current);self.current=None
     p=Parser();p.feed(body)
-    result={'image_url':next((src for key in ('og:image:secure_url','og:image','twitter:image') if (src:=usable_image(p.meta.get(key,''),url))),''),'description':'','supplier_categories':[],'documents':[],'technical_properties':[],'details_version':4}
+    result={'image_url':next((src for key in ('og:image:secure_url','og:image','twitter:image') if (src:=usable_image(p.meta.get(key,''),url))),''),'description':'','supplier_categories':[],'documents':[],'technical_properties':[],'details_version':5}
     def walk(value,depth=0):
         if depth>20:return
         if isinstance(value,dict):
@@ -89,6 +89,15 @@ def page_details(body,url):
             kind=item.get('@type',[]);kind=[kind] if isinstance(kind,str) else kind
             if item is selected and not product_seen:
                 product_seen=True
+                observed={}
+                for field,key in [('manufacturer','manufacturer'),('brand','brand'),('model','model'),('manufacturer_part','mpn')]:
+                    value=item.get(key)
+                    if isinstance(value,dict):value=value.get('name')
+                    if isinstance(value,str) and value.strip():observed[field]=value.strip()[:300]
+                for key in ('gtin14','gtin13','gtin12','gtin8','gtin'):
+                    value=item.get(key)
+                    if isinstance(value,str) and value.strip():observed['gtin']=value.strip();break
+                result['identity_observed']=observed
                 result['description']=text(item.get('description'))[:8000]
                 props=item.get('additionalProperty',[])
                 if isinstance(props,dict):props=[props]

@@ -81,7 +81,7 @@ def collect(key,supplier,client,previous,state,progress,budget=25):
    content,_=client.get(url);r=parse_directory(key,supplier,content,url)
    if r:records[r['key']]=r
   nxt='id="pagination--next"' in body
-  return list(records.values()),dict(status='partial',scope='Vöruskrá í 20 færslu lotum; verð ekki innlesin',loaded=len(records),next_page=page+1 if nxt else 1,checked_at=now())
+  return list(records.values()),dict(status='partial',scope='Vöruskrá í 20 færslu lotum; verð ekki innlesin',loaded=len(records),coverage_units=[str(page)],coverage_total=None if nxt else page,coverage_index='pages',next_page=page+1 if nxt else 1,checked_at=now())
  if key in ('landvelar','dynjandi','tengi'):
   page=int(state.get('next_page',1))
   body,headers=client.get(client.origin+f'/wp-json/wc/store/v1/products?per_page=100&page={page}&orderby=id&order=asc')
@@ -94,7 +94,7 @@ def collect(key,supplier,client,previous,state,progress,budget=25):
    # Public zero prices are not free products. No signed-in prices are accessed.
    if r['price'] is None:r['price_status']='Verð vantar; óska eftir verði hjá birgi'
    records[r['key']]=r
-  return list(records.values()),dict(status='partial',scope='Opinbert vöruviðmót í 100 færslu lotum; ekki tæmandi',loaded=len(records),expected=total,next_page=page+1 if page<pages else 1,checked_at=now())
+  return list(records.values()),dict(status='partial',scope='Opinbert vöruviðmót í 100 færslu lotum; ekki tæmandi',loaded=len(records),coverage_units=[str(page)],coverage_total=pages,coverage_index='api:'+str(total)+':'+str(pages),expected=total,next_page=page+1 if page<pages else 1,checked_at=now())
  path,prefix=DIRECTORIES[key]
  body,_=client.get(client.origin+path,limit=40000000)
  urls=[u for u in sitemap_urls(body) if urlsplit(u).hostname==urlsplit(client.origin).hostname and (prefix is None or urlsplit(u).path.startswith(prefix))]
@@ -103,7 +103,7 @@ def collect(key,supplier,client,previous,state,progress,budget=25):
  if not urls:raise ValueError('Engar staðfestar vöruslóðir í síðukorti; sértenging þarf frekari útfærslu')
  index=inspect_index(client,urls)
  if getattr(client,'index_only',False) is True:return previous,{**state,'status':'partial','error':None,'loaded':len(previous),'index':index,'index_check':'Síðukort skoðað; verð og vörusíður ekki endurlesin'}
- cursor=int(state.get('cursor',0))%len(urls);checked=0;rejected=0;errors=[]
+ cursor=int(state.get('cursor',0))%len(urls);checked=0;rejected=0;errors=[];successful=[]
  for i in range(min(budget,len(urls))):
   url=urls[(cursor+i)%len(urls)]
   try:
@@ -111,10 +111,11 @@ def collect(key,supplier,client,previous,state,progress,budget=25):
    row=parse_directory(key,supplier,page,url)
    if row:records[row['key']]=row
    else:rejected+=1
+   successful.append(str((cursor+i)%len(urls)))
   except HTTPError as e:
    if e.code in (401,403,429):raise
    errors.append(dict(url=url,error=str(e)))
   checked+=1
   progress(dict(stage=f'Vöruskrá {checked}/{min(budget,len(urls))}',loaded=len(records),expected=len(urls),work_done=checked,work_total=min(budget,len(urls)),scan_done=checked,scan_total=len(urls)))
  # Individual HTTP failures remain explicit; successful rows and the next cursor are retained.
- return list(records.values()),dict(status='partial',scope='Vöruskrá í lotum; afbrigði og lagerstaða óstaðfest. Verð aðeins þar sem nákvæmur aðalverðreitur er lesinn.',loaded=len(records),expected=len(urls),index=index,checked_this_run=checked,cursor=(cursor+checked)%len(urls),rejected_this_run=rejected,errors=errors,checked_at=now())
+ return list(records.values()),dict(status='partial',scope='Vöruskrá í lotum; afbrigði og lagerstaða óstaðfest. Verð aðeins þar sem nákvæmur aðalverðreitur er lesinn.',loaded=len(records),expected=len(urls),index=index,coverage_units=successful,coverage_total=len(urls),coverage_index=__import__('sync_priority').index_id(urls),checked_this_run=checked,cursor=(cursor+checked)%len(urls),rejected_this_run=rejected,errors=errors,checked_at=now())

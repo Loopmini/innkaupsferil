@@ -104,6 +104,12 @@ RULES = [
 
 def detect(text):
     n = norm(re.split(r'\s+(?:fyrir|f/|f\.|með|m/)\s*', str(text or ''), maxsplit=1, flags=re.I)[0])
+    # Resolve the head product before equipment named as its intended use.
+    charger=re.search(r'hledslutaek|battery charger|\bcharger\b',n)
+    machine=re.search(r'borvel|skrufvel|naglabyss|slipivel|slipirokk|\bdrill\b',n)
+    if charger and (not machine or charger.start()<machine.start()):return 'electrical.power.power'
+    if re.search(r'\b(?:borbiti|borbitar|drill bit|drill bits)\b',n):return 'tools.drilling.drills'
+    if re.search(r'\b(?:rortengi|rorbeygja|rorhnel|tengimuffa|pipe fitting|pipe elbow)\b',n):return 'plumbing.fittings.fittings'
     if re.search(r'byssunagl|naglar.{0,12}(?:i |fyrir )?naglabyss|collated nail|strip nail|coil nail',norm(text)):return 'fasteners.nails.collated'
     if re.search(r'naglabyss|nail gun|nailer',n) and not re.search(r'varahlut|hulstur|haldari|naglar|byssunagl',n):return 'tools.power.nailers'
     if not re.search(r'hulstur|haldari|slykkj|tengistykki|hamarhaus|varahlut|heftibyss',n):
@@ -128,7 +134,7 @@ def source_snapshot(o):
     return {k:o.get(k) for k in ('name','description','category','subcategory','supplier_categories')}
 
 
-def classify(o, override):
+def _supplier_classify(o, override):
     leaf = override.get('classification_id')
     source, evidence = 'Handvirkt val', 'Staðfest af notanda'
     if not leaf:
@@ -150,11 +156,44 @@ def classify(o, override):
     leaf=leaf if leaf in LEAVES else UNKNOWN
     review=leaf.endswith(('.unspecified','.unknown','_unspecified'))
     if override.get('classification_id') and override.get('source_snapshot') and override['source_snapshot']!=source_snapshot(o):
-        proposed=classify({**o,'manual_category':None},{})
+        proposed=_supplier_classify({**o,'manual_category':None},{})
         if proposed['id'] not in (leaf,UNKNOWN):
             review=True;evidence='Handvirk flokkun varðveitt. Ný birgjagögn benda til annarrar flokkunar: '+' → '.join(proposed['path'])
     return {'id':leaf,'path':LEAVES[leaf],'source':source,'evidence':evidence[:600],
             'needs_review':review,'manual':bool(override.get('classification_id') or o.get('manual_category'))}
+
+
+def classify(o, override):
+    base=_supplier_classify(o,override)
+    candidates=[]
+    identity=o.get('identity',{})
+    if identity.get('status')=='confirmed' and identity.get('manufacturer_description'):
+        leaf=detect(identity['manufacturer_description'])
+        if leaf:candidates.append((leaf,'Yfirfarin framleiðandalýsing',identity['manufacturer_description']))
+    # An explicit product-type field is stronger evidence than an application word.
+    for prop in o.get('technical_properties') or []:
+        if isinstance(prop,dict) and norm(prop.get('name')) in ('product type','vorutegund','tool type'):
+            leaf=detect(prop.get('value'))
+            if leaf:candidates.append((leaf,'Skráð vörutegund í tæknigögnum',str(prop.get('value'))))
+    if base['manual']:
+        selected=(base['id'],base['source'],base['evidence'])
+    elif candidates:selected=candidates[0]
+    else:selected=(base['id'],base['source'],base['evidence'])
+    # Ambiguity is visible, never a silent replacement of a reviewed classification.
+    lower=[]
+    if base['manual']:
+        proposed=_supplier_classify({**o,'manual_category':None},{})
+        lower.append((proposed['id'],proposed['source'],proposed['evidence']))
+    desc=str(o.get('description') or '')[:600]
+    intro=re.split(r'(?<=[.!?])\s|\n|\b(?:Notkun|Hentar|Applications)\b',desc,maxsplit=1)[0]
+    if detect(intro):lower.append((detect(intro),'Upphaf birgjalýsingar',intro))
+    conflicts=[{'id':leaf,'source':src,'evidence':ev[:600]} for leaf,src,ev in candidates+lower+[(base['id'],base['source'],base['evidence'])]
+               if leaf!=selected[0] and leaf!=UNKNOWN and not leaf.endswith(('.unknown','.unspecified','_unspecified'))]
+    if not base['manual'] and len({x[0] for x in candidates})>1:
+        selected=(UNKNOWN,'Til yfirferðar','Tæknilegar heimildir stangast á.')
+    leaf,source,evidence=selected
+    return {**base,'id':leaf,'path':LEAVES[leaf],'source':source,'evidence':evidence[:600],
+            'conflicts':conflicts,'needs_review':bool(conflicts) or leaf.endswith(('.unknown','.unspecified','_unspecified')) or (base['manual'] and base['needs_review'])}
 
 
 def specifications(o, classification, override):

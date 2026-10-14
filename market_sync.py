@@ -197,7 +197,7 @@ def husa(client,previous,state,progress,budget):
  if not urls:raise ValueError('No sitemap candidates')
  index=inspect_index(client,urls)
  if getattr(client,'index_only',False) is True:return previous,{**state,'status':'partial','error':None,'loaded':len(previous),'index':index,'index_check':'Síðukort skoðað; verð og vörusíður ekki endurlesin'}
- cursor=int(state.get('cursor',0))%len(urls);records={r['key']:r for r in previous};errors=[];checked=0
+ cursor=int(state.get('cursor',0))%len(urls);records={r['key']:r for r in previous};errors=[];checked=0;successful=[]
  # One rotating pass already refreshes existing products. Do not reread an extra
  # 50 stale products on every batch (often the same oldest failing URLs).
  work_total=min(budget,len(urls));work_done=0
@@ -210,10 +210,11 @@ def husa(client,previous,state,progress,budget):
    if e.code in (401,403,429):raise
    errors.append(dict(url=url,error=str(e)))
   except (ValueError,TimeoutError) as e:errors.append(dict(url=url,error=str(e)))
+  if not any(e.get('url')==url for e in errors):successful.append(str((cursor+n)%len(urls)))
   checked+=1;work_done+=1;progress(dict(stage=f'Vörusíða {checked}/{min(budget,len(urls))}',loaded=len(records),expected=len(urls),work_done=work_done,work_total=work_total,scan_done=checked,scan_total=len(urls)))
- return list(records.values()),dict(status='partial',scope='Síðukort í lotum; ekki allar slóðir eru vörur',loaded=len(records),expected=len(urls),index=index,cursor=(cursor+checked)%len(urls),checked_this_run=checked,errors=errors[:30],checked_at=now(),robots=client.robot_status)
+ return list(records.values()),dict(status='partial',scope='Síðukort í lotum; ekki allar slóðir eru vörur',loaded=len(records),expected=len(urls),index=index,coverage_units=successful,coverage_total=len(urls),coverage_index=__import__('sync_priority').index_id(urls),cursor=(cursor+checked)%len(urls),checked_this_run=checked,errors=errors[:30],checked_at=now(),robots=client.robot_status)
 
-def run(root=ROOT,husa_limit=100,selected=None,index_only=False,sitemap_cache=None,client_cache=None):
+def run(root=ROOT,husa_limit=100,selected=None,index_only=False,sitemap_cache=None,client_cache=None,force=False):
  directory=root/'data';directory.mkdir(exist_ok=True)
  lock=directory/'market-sync.lock'
  if lock.exists() and not is_running(lock):lock.unlink(missing_ok=True)
@@ -223,12 +224,18 @@ def run(root=ROOT,husa_limit=100,selected=None,index_only=False,sitemap_cache=No
  old=load(directory/'market-live.json',{'products':[],'meta':{}})
  statuses=load(directory/'market-status.json',{'sources':{}}).get('sources',{})
  indexes=load(directory/'market-index.json',{})
- results={};started=now();chosen=selected or list(SOURCES)
+ from sync_priority import plan,checkpoint
+ requested=list(SOURCES) if selected is None else selected
+ chosen,skipped,new_round=plan(SOURCES,statuses,requested,force)
+ if new_round and not index_only:
+  for key in SOURCES:
+   if key not in skipped:statuses[key]={**{k:v for k,v in statuses.get(key,{}).items() if not k.startswith('coverage_')},'coverage_complete':False}
+ results={};started=now()
  guard=threading.Lock();completed=[]
  runtime={k:{'phase':'queued','updated_at':started} for k in chosen}
  def snapshot(**extra):
   atomic(directory/'market-status.json',{'running':True,'started_at':started,'selected':chosen,
-      'completed':completed.copy(),'runtime':runtime,'sources':statuses,**extra})
+      'completed':completed.copy(),'runtime':runtime,'sources':statuses,'skipped':skipped,**extra})
  def progress(source,info):
   with guard:
    runtime[source].update(info,phase='running',updated_at=now())
@@ -276,6 +283,7 @@ def run(root=ROOT,husa_limit=100,selected=None,index_only=False,sitemap_cache=No
     added=sum(r['key'] not in previous for r in rows)
     changed=sum(r['key'] in previous and any(v!=previous[r['key']].get(k) for k,v in r.items() if k not in ('observed_at','details_checked_at')) for r in rows)
     with guard:
+     if not index_only:status=checkpoint(statuses.get(key,{}),status)
      status['last_attempt_at']=status.get('checked_at',now())
      status['last_success_at']=statuses.get(key,{}).get('last_success_at')
      if not index_only and status.get('status') in ('ok','partial') and not status.get('errors'):status['last_success_at']=now()
@@ -298,7 +306,7 @@ def run(root=ROOT,husa_limit=100,selected=None,index_only=False,sitemap_cache=No
     if prev!=current:db.execute('INSERT INTO observations(product_key,observed_at,price,currency,availability) VALUES(?,?,?,?,?)',(r['key'],r['observed_at'],*current))
   atomic(directory/'market-live.json',payload)
   atomic(directory/'market-index.json',indexes)
-  result={'running':False,'started_at':started,'finished_at':now(),'sources':statuses,'loaded':len(products),'selected':chosen,'completed':completed,'runtime':runtime,'phase':'saved'}
+  result={'running':False,'started_at':started,'finished_at':now(),'sources':statuses,'loaded':len(products),'selected':chosen,'completed':completed,'runtime':runtime,'phase':'saved','skipped':skipped}
   atomic(directory/'market-status.json',result)
   return result
  except Exception:

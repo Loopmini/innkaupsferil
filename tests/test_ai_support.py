@@ -23,7 +23,8 @@ class AITest(unittest.TestCase):
     def test_product_minimization(self):
         r=ai.product({'id':1,'name':'bor','description':'a'*2000,'lines':['private invoice'],'file':'private.xlsx','price':123,'image_url':'https://image','documents':[{}]})
         self.assertNotIn('lines',r);self.assertNotIn('file',r);self.assertNotIn('price',r)
-        self.assertEqual(len(r['description']),1800);self.assertTrue(r['has_datasheet'])
+        self.assertEqual(len(r['description']),1800);self.assertFalse(r['has_datasheet'])
+        self.assertTrue(ai.product({'documents':[{'status':'confirmed','type':'datasheet','scope':'product'}]})['has_datasheet'])
     def test_response_payload_and_no_redirect(self):
         body={'status':'completed','output':[{'type':'message','content':[{'type':'output_text','text':'{"ok":true}'}]}]}
         opener=Mock();opener.open.return_value.__enter__=Mock(return_value=io.BytesIO(json.dumps(body).encode()));opener.open.return_value.__exit__=Mock(return_value=False)

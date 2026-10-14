@@ -16,7 +16,7 @@ class MediaSyncTest(unittest.TestCase):
   self.assertEqual(r['image_url'],'https://shop.is/actual.jpg');self.assertEqual(len(r['documents']),1)
  def test_husa_collects_documents_without_another_request(self):
   r=m.parse_husa('<span class="main-sku">1</span><h2>Vara</h2><a href="/doc.pdf">Handbók</a>','https://www.husa.is/item')
-  self.assertEqual(len(r['documents']),1);self.assertEqual(r['details_version'],4);self.assertIn('details_checked_at',r)
+  self.assertEqual(len(r['documents']),1);self.assertEqual(r['details_version'],5);self.assertIn('details_checked_at',r)
  def test_missing_media_preserves_last_known_with_review_marker(self):
   old={'image_url':'https://shop.is/a.jpg','documents':[{'url':'https://shop.is/a.pdf','name':'A'}]}
   r=preserve_media({'image_url':'','documents':[]},old)
