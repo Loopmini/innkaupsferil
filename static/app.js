@@ -91,20 +91,29 @@ function renderProjects() {
 function renderSuppliers() {
   $('supplier-cards').innerHTML=[...new Set([...state.suppliers,...state.offers.map(o=>o.supplier),...(state.metadata?.connections?.suppliers||[]).map(c=>c.supplier)])].sort().map(s=>{const rows=state.offers.filter(o=>o.supplier===s),connection=state.metadata?.connections?.suppliers?.find(c=>c.supplier===s);return `<div class="card"><h3>${esc(s)}</h3><p class="muted">${rows.filter(o=>o.source_kind==='purchase').length} úr innkaupum · ${rows.filter(o=>o.source_kind==='market').length} af markaði</p><span class="pill ${rows.length?'':'warn'}">${rows.length?'Gögn í grunni':'Gögn vantar'}</span>${connection?`<p>${esc(connection.finding)}</p><p class="muted">${esc(connection.next_step)}</p><a href="${esc(connection.url)}" target="_blank" rel="noopener noreferrer">Vefur birgis ↗</a>`:''}</div>`;}).join('');
 }
+let sourceOptions=[];
+function selectedSources(){const keys=[...document.querySelectorAll('#sync-source-options input:checked')].map(x=>x.value);if(!keys.length)throw Error('Veldu að minnsta kosti einn birgi fyrir innlestur.');return keys;}
+function updateSourceCount(){$('selected-source-count').textContent=`(${document.querySelectorAll('#sync-source-options input:checked').length} af ${sourceOptions.length})`;}
 function renderSync(info){
+  if(info.available_sources?.length&&!sourceOptions.length){sourceOptions=info.available_sources;$('sync-source-options').innerHTML='<legend>Birgjar</legend>'+sourceOptions.map(s=>`<label><input type="checkbox" value="${esc(s.key)}" checked> ${esc(s.name)}</label>`).join('');updateSourceCount();}
+  $('sync-source-options').disabled=!!info.running;
+  $('select-all-sources').disabled=!!info.running;$('clear-sources').disabled=!!info.running;
   $('refresh-market').disabled=!!info.running;
   $('full-refresh').disabled=!!info.running;
   $('stop-refresh').hidden=!(info.running&&info.full?.running);
-  const f=info.full; $('full-sync-status').textContent=f?`Heildarlestur: ${({finished:'Umferð lokið',stopped:'Stöðvað eftir lotu',interrupted:'Rofnaði; hægt að halda áfram',error:'Villa'})[f.status]||'Í gangi'} · ${f.batches||0} lotur · ${f.completed?.length||0} birgjar yfirfarnir · ${Object.keys(f.failed||{}).length} með villu eða ótengdir.${f.current?' Nú: '+f.current:''} ${f.error||''}`:'';
-  $('refresh-market').textContent=info.running?'Uppfærsla í gangi…':'↻ Uppfæra markaðsverð';
+  const f=info.full; $('full-sync-status').textContent=f?`Heildarlestur: ${({finished:'Umferð lokið',stopped:'Stöðvað eftir lotu',interrupted:'Rofnaði; hægt að halda áfram',error:'Villa'})[f.status]||'Í gangi'} · ${f.batches||0} lotur · ${f.completed?.length||0} birgjar yfirfarnir · ${Object.keys(f.failed||{}).length} með villu eða ótengdir.${f.current?' Nú: '+(Array.isArray(f.current)?f.current:[f.current]).map(k=>sourceOptions.find(s=>s.key===k)?.name||k).join(' og '):''} ${f.error||''}`:'';
+  $('refresh-market').textContent=info.running?'Uppfærsla í gangi…':'↻ Uppfæra valda birgja';
   $('sync-summary').textContent='Sjálfvirk uppfærsla á 24 klst. fresti meðan forritið keyrir. '+(info.finished_at?'Síðasta keyrsla: '+new Date(info.finished_at).toLocaleString('is-IS')+'. ':'')+'Aðgangshöfnun eða villa merkir að eldri verð geta enn birst. Verðathugunardagur hverrar vöru ræður ferskleika.';
   const labels={ok:'Tenging virkar',partial:'Hluti listans sóttur',blocked:'Aðgangi hafnað',error:'Villa í tengingu',not_connected:'Tenging ólokið'};
   const names={thor:'Þór hf.',husa:'Húsasmiðjan',byko:'BYKO',sindri:'Sindri',fossberg:'Fossberg',isol:'Ísól',rubix:'Rúbix',vatnsvirkinn:'Vatnsvirkinn',vatnogveitur:'Vatn og veitur',ronning:'Röning',iskraft:'Ískraft',reykjafell:'Reykjafell',hampidjan:'Hampiðjan',isfell:'Ísfell',landvelar:'Landvélar',barki:'Barki',wurth:'Würth'};
   $('sync-sources').innerHTML=table(['BIRGIR','STAÐA','ÞEKJA','UPPLÝSINGAR'],Object.entries(info.sources||{}).map(([key,v])=>`<tr><td>${esc(names[key]||key)}</td><td><span class="pill ${v.status==='ok'?'':'warn'}">${esc(labels[v.status]||v.status)}</span></td><td>${v.loaded||0}${v.expected?' / '+v.expected:''}<small>${!['thor','landvelar'].includes(key)?'Slóðafjöldi er ekki staðfestur fjöldi einstakra afbrigða.':''}</small></td><td>${esc(v.scope||'')}<small>${esc(v.error||(v.errors?.length?v.errors.length+' vörusíður skiluðu villu.':''))}</small></td></tr>`).join(''));
 }
-$('full-refresh').onclick=()=>run(async()=>{await api('refresh-market',{mode:'full'});$('status').textContent='Heildarlestur hafinn. Haltu forritinu í gangi; stórar vöruskrár geta tekið langan tíma. Framvinda vistast eftir hverja lotu.';renderSync(await api('sync-status'));});
-$('stop-refresh').onclick=()=>run(async()=>{await api('stop-sync',{});$('status').textContent='Stöðvun beðin. Núverandi lota klárast og vistast fyrst.';});
-$('refresh-market').onclick=()=>run(async()=>{const result=await api('refresh-market',{});$('status').textContent=result.started?'Söfnun hafin. Þú getur haldið áfram að nota kerfið.':'Uppfærsla er þegar í gangi.';renderSync(await api('sync-status'));});
+$('sync-source-options').onchange=updateSourceCount;
+$('select-all-sources').onclick=()=>{document.querySelectorAll('#sync-source-options input').forEach(x=>x.checked=true);updateSourceCount();};
+$('clear-sources').onclick=()=>{document.querySelectorAll('#sync-source-options input').forEach(x=>x.checked=false);updateSourceCount();};
+$('full-refresh').onclick=()=>run(async()=>{await api('refresh-market',{mode:'full',sources:selectedSources()});$('status').textContent='Heildarlestur hafinn. Haltu forritinu í gangi; stórar vöruskrár geta tekið langan tíma. Framvinda vistast eftir hverja lotu.';renderSync(await api('sync-status'));});
+$('stop-refresh').onclick=()=>run(async()=>{await api('stop-sync',{});$('status').textContent='Stöðvun beðin. Virkar lotur klárast og vistast fyrst.';});
+$('refresh-market').onclick=()=>run(async()=>{const result=await api('refresh-market',{sources:selectedSources()});$('status').textContent=result.started?'Söfnun hafin. Þú getur haldið áfram að nota kerfið.':'Uppfærsla er þegar í gangi.';renderSync(await api('sync-status'));});
 let wasSyncing=false;
 setInterval(()=>run(async()=>{const info=await api('sync-status');renderSync(info);if(wasSyncing&&!info.running)await refresh();wasSyncing=!!info.running;}),15000);
 async function run(fn){try{await fn();}catch(e){$('status').textContent=e.message;}}

@@ -144,6 +144,7 @@ def catalogue():
         r.update(details.get(r['id'],{}))
         r['manual_category']=overrides.get(r['id'],'')
         r['image_url']=image_url(r.get('image_url') or images.get(r['id'],''))
+    metadata['sync']=sync_status()
     return dict(offers=offers + extra, projects=projects, items=items, history=history, suppliers=SUPPLIERS, metadata=metadata)
 
 def save_classification(oid, category):
@@ -185,7 +186,8 @@ SYNC_STOP = threading.Event()
 def sync_status():
     path = ROOT / 'data/market-status.json'
     data = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'sources': {}}
-    from market_sync import is_running
+    from market_sync import is_running,SOURCES
+    data['available_sources']=[{'key':k,'name':v[0]} for k,v in SOURCES.items()]
     data['running'] = bool(SYNC_THREAD and SYNC_THREAD.is_alive()) or is_running(ROOT / 'data/market-sync.lock')
     full=ROOT/'data/full-sync.json'
     if full.exists():
@@ -194,8 +196,13 @@ def sync_status():
             data['full'].update(running=False,status='interrupted')
     return data
 
-def start_sync(mode='batch'):
+def start_sync(mode='batch',selected=None):
     global SYNC_THREAD
+    from market_sync import SOURCES
+    if selected is not None:
+        if not isinstance(selected,list) or not selected or any(not isinstance(k,str) or k not in SOURCES for k in selected):
+            raise ValueError('Veldu að minnsta kosti einn þekktan birgi.')
+        selected=list(dict.fromkeys(selected))
     with SYNC_MUTEX:
         if sync_status()['running']:
             return False
@@ -204,8 +211,8 @@ def start_sync(mode='batch'):
                 from market_sync import run
                 if mode=='full':
                     from full_sync import full_pass
-                    full_pass(ROOT,SYNC_STOP)
-                else:run(root=ROOT)
+                    full_pass(ROOT,SYNC_STOP,selected)
+                else:run(root=ROOT,selected=selected)
             except Exception as error:
                 print('Market refresh failed:', error, flush=True)
         SYNC_STOP.clear()
@@ -289,7 +296,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/api/product-image':
                 return self.send(supplier_details(int(data['id'])))
             if self.path == '/api/refresh-market':
-                return self.send({'started': start_sync('full' if data.get('mode')=='full' else 'batch')})
+                return self.send({'started': start_sync('full' if data.get('mode')=='full' else 'batch',data.get('sources'))})
             if self.path == '/api/stop-sync':
                 SYNC_STOP.set()
                 return self.send({'ok':True})

@@ -172,3 +172,12 @@ Myndavillan var í Content-Security-Policy: ytri HTTPS-myndir eru nú leyfðar s
 „Lesa alla birgja“ fer heila umferð í lotum yfir tengdar vöruskrár, frá vistuðum bendli. Nýjar vörur og breytt verð/framboð vistast eftir hverja lotu. Birgjum er skipt á milli lota; lokaður eða bilaður birgir er merktur og kemur ekki í veg fyrir hina. Ótengdir birgjar verða ekki sjálfkrafa tengdir. Heildarstaða, loknir birgjar og villur eru í data/full-sync.json. „Stöðva eftir lotu“ bíður eftir vistun núverandi lotu. Eftir lokun forrits má hefja nýja umferð frá vistuðum stöðum; birgjar sem voru áður yfirfarnir eru þá skoðaðir aftur. Forritið þarf að vera í gangi og stórar skrár geta tekið marga klukkutíma eða lengur. Þetta tryggir ekki tæmandi þekju allra afbrigða, innskráningarverða eða lokaðra vefja.
 
 Venjulegur uppfærsluhnappur og dagleg staðbundin keyrsla taka áfram eina lotu frá hverjum birgi. Heildarlestur er val notanda og er ekki ræstur sjálfkrafa við opnun.
+
+
+## Birgjaval og samtímis innlestur
+
+Opnaðu „Velja birgja fyrir innlestur“, veldu einn eða fleiri, eða notaðu „Velja alla“/„Hreinsa val“. „Uppfæra valda birgja“ tekur eina lotu hjá hverjum völdum birgi. „Heildarlestur valinna birgja“ tekur heila umferð í lotum. Dagleg sjálfvirk uppfærsla nær áfram til allra skráðra tenginga; birgjaval í viðmóti gildir um handvirku keyrsluna.
+
+Báðar leiðir vinna með allt að tvo birgja samtímis. Heildarlestur afgreiðir tvær birgjalotur í einu; ein samræmd vistun kemur í veg fyrir að tveir þræðir yfirskrifi gögn hvors annars. Bið milli beiðna og robots-reglur hvers birgis haldast. Stöðvun bíður eftir báðum virkum lotum. Óvaldir birgjar varðveitast og enginn tómur vallisti er túlkaður sem „allir“. Birgjaval læsist meðan innlestur stendur yfir.
+
+Prófað: 43 Python-próf, Node-leitar/BOM-próf og DOM-próf fyrir birgjaval, rétt beiðnigögn, myndir og flokkun. Samtímapróf notar tvo þræði með samstillingarhindrun og sannreynir jafnframt varðveislu óvalinna birgja.
