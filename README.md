@@ -324,3 +324,17 @@ Slóð sem vantar er ekki sönnun þess að vara sé hætt: síða getur hafa ve
 Fljótari staðfest leið að verðbreytingum væri opinbert vöru-API eða verðskrá frá birgi. Síðukort getur fljótt sýnt breytingu á slóðum en segir eitt og sér ekki hvort verð, lager eða tæknilýsing hafi breyst. Aðgangstakmarkanir og biðreglur birgja eru áfram virtar.
 
 Windows WinError 32 viðgerðin fylgir. Prófanir bæta við samanburði slóðaskráa án vörusíðukalla, varðveislu gagna við horfnar slóðir/tómt síðukort, óstuddum birgjum og tímamati við litlar mælingar, aðgangshöfnun og stöðnun.
+
+## Birgjaskrá, tengiliðir og könnun vöruskrár · v0.12
+
+Opnaðu **Birgjar → Bæta við birgja**. Skrá má nafn, HTTPS-vefslóð, heimilisfang, póstnúmer, bæ/borg, land, kennitölu/fyrirtækjanúmer, síma, netfang og athugasemdir. Kennitala er geymd eins og hún er skráð, ekki sannreynd gagnvart fyrirtækjaskrá. Bæta má allt að 50 tengiliðum við birgi; hver hefur nafn, hlutverk, síma, netfang og athugasemdir. Upplýsingar eru handskráðar og engin óþekkt gildi fyllt með ágiskun.
+
+Núverandi birgjar birtast í sama yfirliti. „Upplýsingar og tengiliðir“ opnar breytingar. Birgjar með sama nafni eða sama hýsli eru ekki stofnaðir aftur; notandi fær skýr skilaboð. Ef birgjaheiti er breytt helst upprunalegt heiti sem tenging við núverandi vörufærslur. Vistun skiptir ekki um vöruauðkenni eða innlestrartengingar. Tengilið er fjarlægt úr eyðublaði og síðan þarf að vista breytinguna.
+
+**Kanna vöruskrá** er sérstök aðgerð eftir vistun slóðar. Hún skoðar robots.txt, upphafssíðu, eitt síðukort og opinbert WooCommerce-vöruviðmót með einu vörudæmi. Hún getur sýnt síðukort, API eða skjalatengla (CSV/Excel/XML/PDF). Skjalatengill einn staðfestir ekki að skjalið sé vöruskrá. Kannanir eru vistaðar með heimild og tíma; breytt slóð hreinsar fyrri könnun. Vefkönnun lokar ekki annarri vinnu í viðmótinu.
+
+Þetta er afmörkuð greining, ekki almenn tengivél sem getur flutt inn af hvaða vef sem er. Nýr birgir er ekki sjálfkrafa settur í innlestrarröðina. Raunveruleg tenging þarf enn prófun á vöruauðkennum, síðum, verði, VSK og einingum. Eldri sértengingar haldast. Fundinn tengill og niðurstaða hjálpa við næstu útfærslu eða við að fá verðskrá frá birgi.
+
+Könnun virðir aðgangsreglur og hættir á HTTP 401/403/429. Aðeins HTTPS á opinber netföng; innri net, localhost, innskráningarupplýsingar í slóð og tilvísanir á annað lén eru útilokuð. Ef vefur vísar á annað lén þarf að skrá lokaslóðina. Svör eru takmörkuð við 2 MB og netbið 8 sekúndur á aðgerð; stór síðukort geta þurft sértengingu. Engar tengiliðaupplýsingar eru sendar á birgjavefinn eða til AI, og enginn tölvupóstur er sendur.
+
+Birgjaskráin er í supplier_profiles-töflu sama SQLite-grunns og fylgir því núverandi afritun/endurheimt. Prófað: vistun, breytingar, tenging eldri birgja, tvítekningar, afrit/endurheimt, aðgangshöfnun, robots-reglur, höfnun einkanetfanga og viðmótsleiðin frá skráningu að könnun. Netprófanir nota hermd svör; virkni á hverjum nýjum birgjavef kemur í ljós við könnun hjá notanda.
