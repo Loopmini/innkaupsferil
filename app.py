@@ -332,7 +332,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(catalogue())
         if path == '/api/template':
             return self.send((','.join(FIELDS) + '\n').encode(), content_type='text/csv; charset=utf-8')
-        files = {'/supplier-ui.js': ('supplier-ui.js','text/javascript'), '/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/families.js': ('families.js','text/javascript'), '/family-ui.js': ('family-ui.js','text/javascript'), '/supplier-ui.js': ('supplier-ui.js','text/javascript'), '/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
         if path in files:
             name, kind = files[path]
             return self.send((ROOT / 'static' / name).read_bytes(), content_type=kind + '; charset=utf-8')

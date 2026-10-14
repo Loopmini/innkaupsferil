@@ -11,7 +11,7 @@ r=B.scenarios(q,{suppliers:{}});assert.equal(r.lowest.total,null);assert(r.lowes
 r=B.scenarios(q,{...t,choices:{'1':2,'2':3}});assert.equal(r.lowest.total,260);assert.equal(r.lowest.used.length,2);
 const min=offer(5,'A','Bor',100,10);min.terms.min_quantity=25;assert.equal(B.cost(rows[0],min,'ISK',Date.now()).packs,3);
 const expired={...min,terms:{...min.terms,valid_until:'2000-01-01'}};assert(!B.cost(rows[0],expired,'ISK',Date.now()).eligible);
-assert.equal(S.grouped([{...offers[0],gtin:'01234567890123'},{...offers[1],gtin:'1234567890123'}]).length,1);
+assert.equal(S.grouped([{...offers[0],gtin:'04006381333931'},{...offers[1],gtin:'4006381333931'}]).length,1);
 assert.equal(S.grouped([{...offers[0],name:'Same'},{...offers[1],name:'Same'}]).length,2);
 const late=offer(6,'A','Bor',50,10);late.terms.delivery_date='2030-02-01';const timely=offer(7,'A','Bor',80,10);timely.terms.delivery_date='2030-01-01';
 r=B.scenarios(B.quote([rows[0]],[late,timely],{'1':[6,7]}),t);assert.equal(r.lowest.total,100);assert.equal(r.onTime.total,160);

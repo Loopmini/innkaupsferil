@@ -10,7 +10,7 @@ function identify(line,o){
  if(line.sku)return canonical(line.sku)===canonical(o.sku);
  return S.matches(o,line.name);
 }
-function exact(line,o){if(o.source_kind==='quote')return false;return identify(line,o)&&!!(line.gtin&&o.gtin||line.brand&&line.manufacturer_part&&o.brand&&o.manufacturer_part||line.supplier&&line.sku);}
+function exact(line,o){if(o.source_kind==='quote')return false;return identify(line,o)&&!!(line.gtin&&o.gtin&&S.validGTIN(line.gtin)&&S.validGTIN(o.gtin)||line.brand&&line.manufacturer_part&&o.brand&&o.manufacturer_part||line.supplier&&line.sku);}
 function cost(line,o,currency,today){
  let reason='';
  for(const [k,v] of Object.entries(line.specifications||{})){

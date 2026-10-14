@@ -60,7 +60,7 @@ function renderCart(){
  document.querySelectorAll('[data-cart-unit]').forEach(x=>x.value=cart[Number(x.dataset.cartUnit)].unit||'');
  $('cart-save-form').hidden=!cart.length;
 }
-function addCart(ids){for(const id of ids){const o=state.offers.find(x=>x.id===id);if(o&&!cart.some(r=>ProductSearch.identity(state.offers.find(x=>x.id===r.id)||{id:r.id})===ProductSearch.identity(o)))cart.push({id,quantity:null,unit:o.unit||''});}$('purchase-cart').hidden=false;renderCart();}
+function addCart(ids){for(const id of ids){const o=state.offers.find(x=>x.id===id);if(o&&!cart.some(r=>ProductSearch.same(state.offers.find(x=>x.id===r.id)||{id:r.id},o)))cart.push({id,quantity:null,unit:o.unit||''});}$('purchase-cart').hidden=false;renderCart();}
 $('cart-open').onclick=()=>{$('purchase-cart').hidden=false;renderCart();};$('cart-close').onclick=()=>$('purchase-cart').hidden=true;
 $('cart-lines').onchange=e=>{if(e.target.dataset.cartQty!==undefined)cart[Number(e.target.dataset.cartQty)].quantity=e.target.value===''?null:Number(e.target.value);if(e.target.dataset.cartUnit!==undefined)cart[Number(e.target.dataset.cartUnit)].unit=e.target.value;};
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.cartOffer)addCart([Number(b.dataset.cartOffer)]);if(b.dataset.cartSuggestions)addCart(b.dataset.cartSuggestions.split(',').map(Number));if(b.dataset.cartRemove!==undefined){cart.splice(Number(b.dataset.cartRemove),1);renderCart();}});

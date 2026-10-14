@@ -62,7 +62,23 @@ def legacy_default(self,*args,**kwargs):
 Path.read_text=legacy_default
 import taxonomy
 assert taxonomy.LEAVES['tools.hand.hand'][0]=='Verkfæri og fylgihlutir'
-assert taxonomy.enrich({'name':'Hamar'})['classification']['id']=='tools.hand.unspecified'
+assert taxonomy.enrich({'name':'Hamar'})['classification']['id']=='tools.hand.hammers_unspecified'
 '''
         result=subprocess.run([sys.executable,'-c',script],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)
+
+class FamilyTaxonomyTest(unittest.TestCase):
+    def test_hammer_types_and_accessories(self):
+        for name,key in [('Klaufhamar 20oz','claw_hammers'),('Gúmmíhamar 12oz','rubber_mallets'),('Sleggja 5 kg','sledgehammers'),('Kúluhamar','ball_peen')]:
+            self.assertEqual(t.enrich({'name':name})['classification']['id'],'tools.hand.'+key)
+        for name in ['Hamarhulstur','Hamarhaldari','PREBENA Heftibyssa / Hamar']:
+            self.assertNotIn(t.enrich({'name':name})['classification']['id'],['tools.hand.claw_hammers','tools.hand.hammers_unspecified'])
+        row=t.enrich({'name':'Kassajárn','category':'Hamrar, sagir og kúbein'})
+        self.assertNotEqual(row['classification']['id'],'tools.hand.hammers_unspecified')
+    def test_explicit_specs_only_and_reversible_separation(self):
+        row=t.enrich({'name':'Klaufhamar 20oz','description':'Þyngd hauss: 0,5 kg'})
+        self.assertEqual(row['specifications']['head_weight_g'],500)
+        self.assertNotIn('weight_g',row['specifications'])
+        override=t.validate_override({'keep_separate':True})
+        self.assertTrue(override['keep_separate'])
+        with self.assertRaises(ValueError):t.validate_override({'keep_separate':'true'})
