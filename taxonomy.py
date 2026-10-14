@@ -6,7 +6,7 @@ import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-TREE = json.loads((ROOT/'seeds/taxonomy.json').read_text())
+TREE = json.loads((ROOT/'seeds/taxonomy.json').read_text(encoding='utf-8'))
 LEAVES = {}
 for top in TREE['groups']:
     for sub in top['children']:
@@ -15,8 +15,8 @@ for top in TREE['groups']:
 UNKNOWN = 'other.review.unknown'
 SPEC_FIELDS = {'thickness_mm':'Þykkt (mm)', 'width_mm':'Breidd (mm)', 'length_mm':'Lengd (mm)',
                'strength_class':'Styrkleikaflokkur', 'treatment':'Yfirborðsmeðhöndlun',
-               'material':'Efni / viðartegund', 'standard':'Staðall'}
-NUMERIC = {'thickness_mm','width_mm','length_mm'}
+               'material':'Efni / viðartegund', 'standard':'Staðall', 'diameter_mm':'Þvermál (mm)', 'nominal_size':'Nafnstærð (DN)', 'pressure_class':'Þrýstiflokkur'}
+NUMERIC = {'thickness_mm','width_mm','length_mm','diameter_mm'}
 LEGACY = {
  'Borar og snittvörur':'tools.drilling.unspecified', 'Skurðar- og slípivörur':'tools.cutting.unspecified',
  'Handverkfæri og mælitæki':'tools.hand.unspecified', 'Vélar og rafmagnsverkfæri':'tools.power.power',
@@ -31,7 +31,7 @@ LEGACY = {
  'Leikföng og módel':'toys.toys.toys','Hreinlætistæki og baðbúnaður':'plumbing.sanitary.sanitary',
  'Stigar og vinnupallar':'tools.access.access','Annað og óflokkað':UNKNOWN}
 # Legacy name rules preserve coverage while canonical IDs eliminate duplicate categories.
-OLD_RULES = json.loads((ROOT/'seeds/legacy-category-rules.json').read_text())
+OLD_RULES = json.loads((ROOT/'seeds/legacy-category-rules.json').read_text(encoding='utf-8'))
 
 
 def norm(v):
@@ -162,10 +162,15 @@ def specifications(o, classification, override):
                 if re.search(pat,n):put('treatment',value,label)
             for pat,value in [(r'\bgreni\b','Greni'),(r'\bfura\b','Fura'),(r'\blerki\b','Lerki'),(r'\beik\b','Eik'),(r'\bbirki\b','Birki')]:
                 if re.search(pat,n):put('material',value,label)
+    if classification['id'].startswith(('plumbing.','fluid.')):
+        n=norm(str(o.get('name',''))+' '+str(o.get('description','')))
+        for m in re.finditer(r'\bdn\s*(\d+)\b',n):put('nominal_size','DN'+m[1],'Vöruheiti/lýsing: '+m[0])
+        for m in re.finditer(r'\bpn\s*(\d+)\b',n):put('pressure_class','PN'+m[1],'Vöruheiti/lýsing: '+m[0])
+        for m in re.finditer(r'thvermal\s*[:=]?\s*(\d+(?:\.\d+)?)\s*mm',n):put('diameter_mm',float(m[1]),'Vöruheiti/lýsing: '+m[0])
     for prop in (o.get('technical_properties') or [])[:50]:
         if not isinstance(prop,dict):continue
         name=norm(prop.get('name'));raw=norm(prop.get('value'));unit=norm(prop.get('unit'))
-        for key,labels in [('thickness_mm',('thykkt','thickness')),('width_mm',('breidd','width')),('length_mm',('lengd','length'))]:
+        for key,labels in [('thickness_mm',('thykkt','thickness')),('width_mm',('breidd','width')),('length_mm',('lengd','length')),('diameter_mm',('thvermal','diameter'))]:
             if not any(re.fullmatch(label+r'(?:\s*\(mm\))?',name) for label in labels):continue
             match=re.fullmatch(r'(\d+(?:\.\d+)?)\s*(mm|cm|m)?',raw)
             units=match[2] if match else None

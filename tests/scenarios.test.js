@@ -1,0 +1,20 @@
+const assert=require('assert/strict'),B=require('../static/bom-core.js'),S=require('../static/search.js');
+const now=new Date().toISOString();
+const offer=(id,supplier,name,net,pack=1)=>({id,supplier,sku:String(id),name,net_price:net,price:net,pack_quantity:pack,unit:'stk',currency:'ISK',source_kind:'market',observed_at:now,terms:{min_quantity:0,status:'confirmed'}});
+const offers=[offer(1,'A','Bor',100,10),offer(2,'B','Bor',70,10),offer(3,'A','Hamar',20),offer(4,'B','Hamar',30)];
+const rows=[{line_id:'1',name:'Bor',quantity:11,unit:'stk'},{line_id:'2',name:'Hamar',quantity:1,unit:'stk'}];
+const q=B.quote(rows,offers,{'1':[1,2],'2':[3,4]});
+assert.equal(q.lines[0].best.packs,2);
+const t={suppliers:{A:{shipping:0,other_fees:0,currency:'ISK',status:'confirmed',delivery_date:'2030-01-01'},B:{shipping:100,other_fees:0,currency:'ISK',status:'confirmed',delivery_date:'2030-02-01'}},wanted_date:'2030-01-15'};
+let r=B.scenarios(q,t);assert.equal(r.lowest.total,220);assert.deepEqual(r.lowest.used,['A']);assert.equal(r.onTime.total,220);
+r=B.scenarios(q,{suppliers:{}});assert.equal(r.lowest.total,null);assert(r.lowest.missing.some(x=>x.includes('flutningskostnað')));
+r=B.scenarios(q,{...t,choices:{'1':2,'2':3}});assert.equal(r.lowest.total,260);assert.equal(r.lowest.used.length,2);
+const min=offer(5,'A','Bor',100,10);min.terms.min_quantity=25;assert.equal(B.cost(rows[0],min,'ISK',Date.now()).packs,3);
+const expired={...min,terms:{...min.terms,valid_until:'2000-01-01'}};assert(!B.cost(rows[0],expired,'ISK',Date.now()).eligible);
+assert.equal(S.grouped([{...offers[0],gtin:'01234567890123'},{...offers[1],gtin:'1234567890123'}]).length,1);
+assert.equal(S.grouped([{...offers[0],name:'Same'},{...offers[1],name:'Same'}]).length,2);
+const late=offer(6,'A','Bor',50,10);late.terms.delivery_date='2030-02-01';const timely=offer(7,'A','Bor',80,10);timely.terms.delivery_date='2030-01-01';
+r=B.scenarios(B.quote([rows[0]],[late,timely],{'1':[6,7]}),t);assert.equal(r.lowest.total,100);assert.equal(r.onTime.total,160);
+console.log('Scenarios passed: supplier fees, pack rounding, MOQ, unknown fees, overrides, deadline and identity grouping.');
+
+const exported=B.scenarioRows(q,t);assert.equal(exported.find(x=>x[0]==='Lægsti reiknanlegi kostnaður'&&x[1]==='heild')[10],220);assert.equal(B.scenarioRows(q,{}) .find(x=>x[1]==='heild')[10],'');assert(exported.every(x=>x.length===17));

@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import sqlite3
 import time
+import threading
 from datetime import datetime, timezone
 from urllib.error import HTTPError
 from urllib.parse import urlsplit, urljoin, quote
@@ -202,12 +203,21 @@ def run(root=ROOT,husa_limit=100,selected=None):
  os.write(fd,str(os.getpid()).encode());os.close(fd)
  old=load(directory/'market-live.json',{'products':[],'meta':{}})
  statuses=load(directory/'market-status.json',{'sources':{}}).get('sources',{})
- results={};started=now()
+ results={};started=now();chosen=selected or list(SOURCES)
+ guard=threading.Lock();completed=[]
+ runtime={k:{'phase':'queued','updated_at':started} for k in chosen}
+ def snapshot(**extra):
+  atomic(directory/'market-status.json',{'running':True,'started_at':started,'selected':chosen,
+      'completed':completed.copy(),'runtime':runtime,'sources':statuses,**extra})
  def progress(source,info):
-  print(json.dumps({'supplier':source,**info},ensure_ascii=False),flush=True)
+  with guard:
+   runtime[source].update(info,phase='running',updated_at=now())
+   snapshot()
+
  def worker(key):
   supplier,origin=SOURCES[key];previous=[r for r in old['products'] if r['supplier']==supplier]
   try:
+   progress(key,{'stage':'Tengist birgi og athugar aðgang'})
    c=Client(origin)
    if key=='thor':return key,thor(c,previous,statuses.get(key,{}),lambda i:progress(key,i))
    if key=='husa':return key,husa(c,previous,statuses.get(key,{}),lambda i:progress(key,i),husa_limit)
@@ -217,12 +227,20 @@ def run(root=ROOT,husa_limit=100,selected=None):
   except Exception as e:
    return key,(previous,{**statuses.get(key,{}),'status':'blocked' if isinstance(e,HTTPError) and e.code in (401,403,429) else 'error','error':str(e),'loaded':len(previous),'checked_at':now(),'scope':'Fyrri athuganir varðveittar; engin fersk uppfærsla'})
  try:
-  chosen=selected or list(SOURCES)
-  atomic(directory/'market-status.json',{'running':True,'started_at':started,'sources':statuses})
+  snapshot()
   with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-   for key,(rows,status) in pool.map(worker,chosen):
-    results[key]=rows;statuses[key]=status
-    atomic(directory/'market-status.json',{'running':True,'started_at':started,'sources':statuses})
+   futures=[pool.submit(worker,key) for key in chosen]
+   for future in concurrent.futures.as_completed(futures):
+    key,(rows,status)=future.result()
+    previous={r['key']:r for r in old['products'] if r['supplier']==SOURCES[key][0]}
+    added=sum(r['key'] not in previous for r in rows)
+    changed=sum(r['key'] in previous and any(v!=previous[r['key']].get(k) for k,v in r.items() if k!='observed_at') for r in rows)
+    with guard:
+     results[key]=rows;statuses[key]=status;completed.append(key)
+     runtime[key].update(phase=status['status'],updated_at=now(),new_products=added,changed_products=changed,
+                         loaded=status.get('loaded',len(rows)),stage='Lota lesin; bíður vistunar')
+     snapshot()
+  with guard:snapshot(phase='saving')
   products=[r for r in old['products'] if r['supplier'] not in {SOURCES[k][0] for k in chosen}]
   for rows in results.values():products.extend(rows)
   payload={'meta':{'checked_at':now(),'scope':'Sjálfvirkar opinberar athuganir. Þekja og síðasta árangursríka söfnun eru mismunandi eftir birgjum. Ekki tæmandi markaðsskrá.'},'products':products}
@@ -234,9 +252,12 @@ def run(root=ROOT,husa_limit=100,selected=None):
     current=(r['price'],r['currency'],r['availability'])
     if prev!=current:db.execute('INSERT INTO observations(product_key,observed_at,price,currency,availability) VALUES(?,?,?,?,?)',(r['key'],r['observed_at'],*current))
   atomic(directory/'market-live.json',payload)
-  result={'running':False,'started_at':started,'finished_at':now(),'sources':statuses,'loaded':len(products)}
+  result={'running':False,'started_at':started,'finished_at':now(),'sources':statuses,'loaded':len(products),'selected':chosen,'completed':completed,'runtime':runtime,'phase':'saved'}
   atomic(directory/'market-status.json',result)
   return result
+ except Exception:
+  with guard:snapshot(running=False,phase='error',finished_at=now(),error='Vistun eða keyrsla mistókst. Skoðaðu fyrri gögn áður en þú reynir aftur.')
+  raise
  finally:lock.unlink(missing_ok=True)
 
 if __name__=='__main__':

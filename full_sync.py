@@ -9,7 +9,7 @@ def full_pass(root,stop,selected=None):
     if not pending or any(k not in SOURCES for k in pending):raise ValueError("Veldu að minnsta kosti einn þekktan birgi.")
     starts={k:previous.get(k,{}).get('next_page',1) for k in pending}
     travelled={k:0 for k in pending};rounds={k:0 for k in pending}
-    state={'selected':pending.copy(),'concurrency':2,'running':True,'started_at':now(),'completed':[],'failed':{},'pending':pending.copy(),'current':None,'batches':0}
+    state={'selected':pending.copy(),'concurrency':2,'running':True,'started_at':now(),'completed':[],'failed':{},'pending':pending.copy(),'current':None,'batches':0,'counts':{}}
     atomic(path,state)
     try:
         while pending and not stop.is_set():
@@ -21,6 +21,9 @@ def full_pass(root,stop,selected=None):
             for key in batch:
                 before=previous.get(key,{});after=result['sources'][key]
                 rounds[key]+=1;state['batches']+=1
+                count=state['counts'].setdefault(key,{'new_products':0,'changed_products':0,'batches':0})
+                count['batches']+=1
+                for field in ('new_products','changed_products'):count[field]+=result.get('runtime',{}).get(key,{}).get(field,0)
                 if after['status'] in ('error','blocked','not_connected'):
                     state['failed'][key]=after.get('error',after.get('scope','Tenging ólokið'))
                 else:

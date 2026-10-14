@@ -41,6 +41,20 @@
     if(a.brand&&b.brand&&a.manufacturer_part&&b.manufacturer_part)return normalize(a.brand)===normalize(b.brand)&&clean(a.manufacturer_part)===clean(b.manufacturer_part);
     return !!(a.sku&&b.sku&&a.supplier&&b.supplier&&normalize(a.supplier)===normalize(b.supplier)&&clean(a.sku)===clean(b.sku));
   }
+  function identity(o){
+    if(o.gtin)return 'gtin:'+String(o.gtin).replace(/^0+/,'');
+    if(o.brand&&o.manufacturer_part)return 'mpn:'+normalize(o.brand)+':'+String(o.manufacturer_part).trim().toLowerCase();
+    if(o.supplier&&o.sku)return 'sku:'+normalize(o.supplier)+':'+String(o.sku).trim().toLowerCase();
+    return 'record:'+o.id;
+  }
+  function grouped(offers){const map=new Map();for(const o of offers){const key=identity(o);if(!map.has(key))map.set(key,[]);map.get(key).push(o);}return [...map].map(([id,offers])=>({id,offers,representative:offers.find(o=>o.image_url)||offers[0]}));}
+  function differences(a,b){
+    const changes=[];for(const key of new Set([...Object.keys(a.specifications||{}),...Object.keys(b.specifications||{})])){
+      const x=a.specifications?.[key],y=b.specifications?.[key];if(x==null||y==null)changes.push(key+': upplýsingar vantar');else if(normalize(x)!==normalize(y))changes.push(key+': '+x+' / '+y);
+    }
+    if(a.unit!==b.unit)changes.push('Ólíkar sölueiningar');if(a.pack_quantity!==b.pack_quantity)changes.push('Ólík pakkastærð');
+    return changes;
+  }
   function comparable(a,b){
     const c=a.classification?.id,d=b.classification?.id;
     if(a.id!==b.id&&c===d&&c?.startsWith('building.')&&!c.endsWith('.unspecified')&&!c.endsWith('.unknown')){
@@ -51,6 +65,6 @@
     const x=attributes(a),y=attributes(b);
     return a.id!==b.id&&x.kind==='drill'&&y.kind==='drill'&&x.diameter_mm!==null&&x.diameter_mm===y.diameter_mm&&x.usage&&x.usage===y.usage&&x.form==='single'&&y.form==='single';
   }
-  const api={normalize,attributes,parse,matches,comparable,same};
+  const api={normalize,attributes,parse,matches,comparable,same,identity,grouped,differences};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.ProductSearch=api;
 })(globalThis);

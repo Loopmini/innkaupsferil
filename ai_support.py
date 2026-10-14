@@ -148,3 +148,56 @@ def bom_help(line, offers):
         seen.add(s['id'])
         result.append({'id': s['id'], 'reason': text(s.get('reason')), 'checks': strings(s.get('checks'))})
     return {'summary': text(r.get('summary')), 'suggestions': result}
+
+CHAT_PLAN = object_schema({'queries': STRINGS})
+CHAT_REPLY = object_schema({'answer': STRING, 'questions': STRINGS, 'products': {'type':'array','items':object_schema({'id':{'type':'integer'},'reason':STRING})}})
+
+
+def chat(message, history, offers):
+    """Two bounded calls: formulate search terms, then explain real catalogue matches."""
+    import taxonomy
+    message=text(message,2000).strip()
+    if not message:raise ValueError('Skrifaðu hvað þig vantar.')
+    if not isinstance(history,list) or len(history)>8:raise ValueError('Of löng spjallsaga.')
+    conversation=[]
+    for h in history:
+        if not isinstance(h,dict) or h.get('role') not in ('user','assistant'):raise ValueError('Ógild spjallsaga.')
+        conversation.append({'role':h['role'],'text':text(h.get('text'),4000)})
+    plan=ask('Búðu til 1–5 stutt leitarorðasambönd fyrir vörugrunn. Notaðu íslensk vöruheiti og samheiti; '
+             'varðveittu stærðir/efni sem notandi biður um. Notaðu fyrra spjall til að skilja framhaldsspurningu. '
+             'Ekki setja magn pöntunar í leitarorð. Ef beiðnin er óljós má queries vera tómt.',
+             {'history':conversation,'message':message},CHAT_PLAN)
+    if not isinstance(plan,dict) or not isinstance(plan.get('queries'),list) or len(plan['queries'])>5:raise ValueError('Ógild leitartillaga frá AI.')
+    queries=[text(q,120) for q in plan['queries']]
+    def normalize(v):return re.sub(r'(\d)\s+mm\b',r'\1mm',taxonomy.norm(v))
+    scores=[]
+    for o in offers:
+        if o.get('source_kind') in ('purchase','reference','quote'):continue
+        name=normalize(' '.join(str(o.get(k) or '') for k in ('name','sku','brand','manufacturer_part')))
+        extra=normalize(' '.join([str(o.get('description') or ''),*(o.get('search_tags') or []),*(str(v) for v in o.get('specifications',{}).values())]))
+        best=0
+        for query in queries:
+            terms=re.findall(r'[\w.]+',normalize(query))
+            if not terms:continue
+            def contains(term,haystack):
+                return bool(re.search(r'(?<![\d.])'+re.escape(term)+r'(?!\d)',haystack)) if term[0].isdigit() else term in haystack
+            hits=[3 if contains(t,name) else 1 if contains(t,extra) else 0 for t in terms]
+            if all(hits):best=max(best,sum(hits)/len(hits))
+        if best:scores.append((best,o))
+    scores.sort(key=lambda x:(-x[0],str(x[1].get('name','')),x[1]['id']))
+    candidates=[o for _,o in scores[:40]]
+    result=ask('Svaraðu sem hjálpsamur innkaupaaðstoðarmaður. Útskýrðu hvað fannst, spurðu um óljósar kröfur '
+               'og veldu að hámarki átta vörur úr candidates. Veldu aðeins vörur sem gætu uppfyllt beiðnina. '
+               'Verð birtist sérstaklega úr gagnagrunni: aldrei nefna töluleg verð eða fullyrða ódýrast í svarinu. '
+               'Enginn vefaðgangur; ekki fullyrða að allur markaður hafi verið yfirfarinn eða að vörur séu til á lager. '
+               'Ef ekkert passar, segðu að það vanti gögn og spurðu gagnlegrar spurningar. '
+               'Þú mátt ekki panta, vista breytingar eða staðfesta tæknilegt jafngildi.',
+               {'history':conversation,'message':message,'queries':queries,'candidate_count':len(scores),
+                'candidates':[product(o) for o in candidates]},CHAT_REPLY)
+    if not isinstance(result,dict) or not isinstance(result.get('products'),list) or len(result['products'])>8:raise ValueError('Ógilt spjallsvar.')
+    known={o['id'] for o in candidates};seen=set();products=[]
+    for p in result['products']:
+        if not isinstance(p,dict) or type(p.get('id')) is not int or p['id'] not in known or p['id'] in seen:raise ValueError('AI vísaði í óþekkta vöru.')
+        seen.add(p['id']);products.append({'id':p['id'],'reason':text(p.get('reason'))})
+    return {'answer':text(result.get('answer'),4000),'questions':strings(result.get('questions')),
+            'products':products,'queries':queries,'matched':len(scores),'reviewed':len(candidates)}

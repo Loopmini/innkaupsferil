@@ -50,3 +50,19 @@ class TaxonomyTest(unittest.TestCase):
         self.assertEqual(o['specifications']['length_mm'],4200)
         self.assertEqual(o['specifications']['strength_class'],'C24')
         self.assertNotIn('width_mm',o['specifications'])
+    def test_windows_legacy_encoding_does_not_corrupt_taxonomy(self):
+        import subprocess,sys
+        script='''
+from pathlib import Path
+original=Path.read_text
+def legacy_default(self,*args,**kwargs):
+    if self.name in ('taxonomy.json','legacy-category-rules.json') and not args and 'encoding' not in kwargs:
+        kwargs['encoding']='cp1252'
+    return original(self,*args,**kwargs)
+Path.read_text=legacy_default
+import taxonomy
+assert taxonomy.LEAVES['tools.hand.hand'][0]=='Verkfæri og fylgihlutir'
+assert taxonomy.enrich({'name':'Hamar'})['classification']['id']=='tools.hand.unspecified'
+'''
+        result=subprocess.run([sys.executable,'-c',script],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
