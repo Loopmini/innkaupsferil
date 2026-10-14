@@ -399,3 +399,14 @@ Viðbót við samþykkta v0.14-síðukortið og vinnusvæðin; sömu inngangar o
 **Prófanir:** 105 Python-próf og sjö eldri Node-prófasöfn. Nýtt endurkeyranlegt DOM-próf með tilbúnum prófunargögnum: `LINKEDOM_PATH=/slod/a/linkedom node tests/workspace.test.cjs` (linkedom er aðeins prófunartól, ekki keyrslukrafa). Sama próf var keyrt með fullu fyrirliggjandi safni. Prófað er meðal annars Enter/Shift/IME, tvísending, villa/endursending, varðveisla við lokun/síðuskipti, síðbúið svar eftir stöðvun, skrun við lestur, smellanleg niðurstaða og viðhengisforskoðun án staðfestingar. Bakendapróf staðfesta tvístefnutengsl, varanlega vistun, heimildarkröfur, breytt tæknigögn, mótsagnir og varðveislu flokkunar.
 
 **Ólokið:** Raunveruleg Windows-/sjónræn vafraprófun og lifandi AI-prófun. Engin samhæfispör hafa verið tæknilega staðfest fyrir notandann; það krefst framleiðandagagna. Sjálfvirkar samhæfisreglur fyrir bora/borbita, slípirokk/skífur og lagnir/tengi bíða; handvirka tengslalíkanið er sameiginlegt. PDF-/myndaútdráttur, aðgangshópar, einangrað dragnasafn og víðtæk leit í öllum sögugögnum eru áfram óloknir áfangar eins og lýst er fyrir v0.14. Enginn API-lykill var stofnaður eða settur í kóðann.
+
+
+## Leiðrétting · v0.15.1
+
+Handsagir fá sérstaka vörutegund undir Handverkfæri. Sög er greind á undan efninu sem hún sker; sagarblöð haldast aðskilin. Sjálfvirk flokkun er endurreiknuð við hleðslu gagnanna, án nýs vefinnlesturs. Handvirkt staðfest flokkun er ekki yfirskrifuð.
+
+Húsasmiðjuyfirferð les nú hverja slóð einu sinni í hverri hringferð. Aukalykkja sem endurskoðaði allt að 50 eldri vörur við hverja 100 slóða lotu hefur verið fjarlægð. Í fullri yfirferð eru síðukort endurnýtt milli lota; næsta keyrsla sækir þau aftur. Vörusíður og verð eru ekki afgreidd sem fersk út frá óbreyttu síðukorti. Robots-bann stöðvar birginn og birtist sem lokaður aðgangur. Birgjar án tilbúinnar tengingar senda ekki tilgangslausar vefbeiðnir. Fyrri gögn varðveitast.
+
+Þetta er fækkun beiðna, ekki mæld hraðaaukning á lifandi vef. Tveggja sekúndna lágmarksbil og reglur birgja haldast. Stórt safn getur enn tekið langan tíma; fullur verðlisti/API frá birgi er hagkvæmari en lestur hverrar vörusíðu. Hraðskoðun síðukorts telur slóðabreytingar en staðfestir ekki verðbreytingar. Ískraftstengingin er áfram ein vöruslóð, ekki full vöruskrá.
+
+Prófað: 109 Python-próf (þar af fjögur ný fyrir flokkun sagar/efnis/blaðs, bann án vefbeiðni, endurnýtingu síðukorts og enga tvílesningu eldri vara). Engin lifandi mæling á hraða eða ný athugun á framboði API birgja.

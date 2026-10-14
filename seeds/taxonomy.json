@@ -801,6 +801,10 @@
               "id": "tools.hand.knives",
               "name": "Hnífar",
               "description": "Velja þarf blað og gerð fyrir efnið og verkið."
+            },
+            {
+              "id": "tools.hand.handsaws",
+              "name": "Handsagir"
             }
           ]
         },

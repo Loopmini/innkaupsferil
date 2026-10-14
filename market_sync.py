@@ -63,6 +63,8 @@ class Redirect(HTTPRedirectHandler):
    raise ValueError('Redirect leaves approved origin')
   return super().redirect_request(req,fp,code,msg,headers,newurl)
 
+class AccessBlocked(RuntimeError):pass
+
 class Client:
  def __init__(self,origin):
   self.origin=origin;self.last=0;self.delay=2;self.robot=None;self.robot_status=''
@@ -89,8 +91,14 @@ class Client:
    if len(body)>limit:raise ValueError('Response limit exceeded')
    return body.decode('utf-8',errors='replace'),dict(response.headers)
  def get(self,url,limit=15000000):
-  if self.robot and not self.robot.can_fetch(AGENT,url):raise ValueError('robots.txt disallows URL')
-  try:return self.raw(url,limit)
+  if self.robot and not self.robot.can_fetch(AGENT,url):raise AccessBlocked('robots.txt bannar aðgang að þessari slóð; innlestur birgis stöðvaður')
+  cache=getattr(self,'sitemap_cache',None)
+  cacheable='sitemap' in urlsplit(url).path.lower()
+  if cache is not None and cacheable and url in cache:return cache[url]
+  try:
+   result=self.raw(url,limit)
+   if cache is not None and cacheable:cache[url]=result
+   return result
   except HTTPError as e:
    if e.code not in (502,503,504):raise
    return self.raw(url,limit)
@@ -180,17 +188,9 @@ def husa(client,previous,state,progress,budget):
  index=inspect_index(client,urls)
  if getattr(client,'index_only',False) is True:return previous,{**state,'status':'partial','error':None,'loaded':len(previous),'index':index,'index_check':'Síðukort skoðað; verð og vörusíður ekki endurlesin'}
  cursor=int(state.get('cursor',0))%len(urls);records={r['key']:r for r in previous};errors=[];checked=0
- stale=sorted([r for r in previous if (datetime.now(timezone.utc)-datetime.fromisoformat(r['observed_at'])).total_seconds()>86400],key=lambda r:r['observed_at'])[:min(50,budget)]
- work_total=len(stale)+min(budget,len(urls));work_done=0
- for old in stale:
-  try:
-   page,_=client.get(old['url']);fresh=parse_husa(page,old['url'])
-   if fresh:records[fresh['key']]=fresh
-  except HTTPError as e:
-   if e.code in (401,403,429):raise
-   errors.append(dict(url=old['url'],error=str(e)))
-  except (ValueError,TimeoutError) as e:errors.append(dict(url=old['url'],error=str(e)))
-  work_done+=1;progress(dict(stage='Endurskoðar eldri vörur',work_done=work_done,work_total=work_total,loaded=len(records)))
+ # One rotating pass already refreshes existing products. Do not reread an extra
+ # 50 stale products on every batch (often the same oldest failing URLs).
+ work_total=min(budget,len(urls));work_done=0
  for n in range(min(budget,len(urls))):
   url=urls[(cursor+n)%len(urls)]
   try:
@@ -203,7 +203,7 @@ def husa(client,previous,state,progress,budget):
   checked+=1;work_done+=1;progress(dict(stage=f'Vörusíða {checked}/{min(budget,len(urls))}',loaded=len(records),expected=len(urls),work_done=work_done,work_total=work_total,scan_done=checked,scan_total=len(urls)))
  return list(records.values()),dict(status='partial',scope='Síðukort í lotum; ekki allar slóðir eru vörur',loaded=len(records),expected=len(urls),index=index,cursor=(cursor+checked)%len(urls),checked_this_run=checked,errors=errors[:30],checked_at=now(),robots=client.robot_status)
 
-def run(root=ROOT,husa_limit=100,selected=None,index_only=False):
+def run(root=ROOT,husa_limit=100,selected=None,index_only=False,sitemap_cache=None):
  directory=root/'data';directory.mkdir(exist_ok=True)
  lock=directory/'market-sync.lock'
  if lock.exists() and not is_running(lock):lock.unlink(missing_ok=True)
@@ -236,8 +236,12 @@ def run(root=ROOT,husa_limit=100,selected=None,index_only=False):
   try:
    if index_only and key not in ('husa','rubix','isfell','barki','wurth'):
     return key,(previous,{**statuses.get(key,{}),'status':statuses.get(key,{}).get('status','not_connected'),'loaded':len(previous),'index_check':'Hraðskoðun síðukorts ekki útfærð fyrir þennan birgi'})
+   from supplier_catalogues import DIRECTORIES
+   if key not in DIRECTORIES and key not in ('thor','husa','landvelar','dynjandi','tengi'):
+    return key,(previous,dict(status='not_connected',scope='Sérstök vörutenging ekki tilbúin; engar vefbeiðnir sendar',loaded=len(previous),checked_at=now()))
    progress(key,{'stage':'Tengist birgi og athugar aðgang','started_at':now()})
    c=Client(origin)
+   c.sitemap_cache=sitemap_cache
    c.index_only=index_only;c.record_index=lambda urls:record_index(key,urls)
    if key=='thor':return key,thor(c,previous,statuses.get(key,{}),lambda i:progress(key,i))
    if key=='husa':return key,husa(c,previous,statuses.get(key,{}),lambda i:progress(key,i),husa_limit)
@@ -245,7 +249,7 @@ def run(root=ROOT,husa_limit=100,selected=None,index_only=False):
    if key in DIRECTORIES or key in ('landvelar','dynjandi','tengi'):return key,collect(key,supplier,c,previous,statuses.get(key,{}),lambda i:progress(key,i))
    return key,(previous,dict(status='not_connected',scope='Sérstök vörutenging ekki tilbúin',loaded=len(previous),checked_at=now()))
   except Exception as e:
-   return key,(previous,{**statuses.get(key,{}),'status':'blocked' if isinstance(e,HTTPError) and e.code in (401,403,429) else 'error','error':str(e),'loaded':len(previous),'checked_at':now(),'scope':'Fyrri athuganir varðveittar; engin fersk uppfærsla'})
+   return key,(previous,{**statuses.get(key,{}),'status':'blocked' if isinstance(e,AccessBlocked) or isinstance(e,HTTPError) and e.code in (401,403,429) else 'error','error':str(e),'loaded':len(previous),'checked_at':now(),'scope':'Fyrri athuganir varðveittar; engin fersk uppfærsla'})
  try:
   snapshot()
   with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
