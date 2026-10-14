@@ -1,5 +1,6 @@
 """Public catalogue discovery and resumable refresh. No credentials or private data."""
 import argparse
+import gzip
 import concurrent.futures
 import html
 import json
@@ -67,7 +68,7 @@ class AccessBlocked(RuntimeError):pass
 
 class Client:
  def __init__(self,origin):
-  self.origin=origin;self.last=0;self.delay=2;self.robot=None;self.robot_status=''
+  self.origin=origin;self.last=0;self.delay=2;self.robot=None;self.robot_status='';self.opener=build_opener(Redirect())
   try:
    body,_=self.raw(origin+'/robots.txt',limit=250000)
    if body.lstrip().startswith('<'):raise ValueError('robots.txt returns HTML; manual review required')
@@ -86,8 +87,11 @@ class Client:
   time.sleep(max(0,self.delay-(time.monotonic()-self.last)))
   self.last=time.monotonic()
   encoded=quote(url,safe=":/?&=%#@!$'()*+,;[]~")
-  with build_opener(Redirect()).open(Request(encoded,headers={'User-Agent':AGENT,'Accept-Encoding':'identity'}),timeout=30) as response:
-   body=response.read(limit+1)
+  if not hasattr(self,'opener'):self.opener=build_opener(Redirect())
+  with self.opener.open(Request(encoded,headers={'User-Agent':AGENT,'Accept-Encoding':'gzip'}),timeout=30) as response:
+   # Bound decompressed bytes as well as ordinary responses.
+   stream=gzip.GzipFile(fileobj=response) if response.headers.get('Content-Encoding','').lower()=='gzip' else response
+   body=stream.read(limit+1)
    if len(body)>limit:raise ValueError('Response limit exceeded')
    return body.decode('utf-8',errors='replace'),dict(response.headers)
  def get(self,url,limit=15000000):
@@ -96,12 +100,18 @@ class Client:
   cacheable='sitemap' in urlsplit(url).path.lower()
   if cache is not None and cacheable and url in cache:return cache[url]
   try:
-   result=self.raw(url,limit)
+   try:result=self.raw(url,limit)
+   except HTTPError as e:
+    if e.code not in (502,503,504):raise
+    result=self.raw(url,limit)
+   self.failures=0
    if cache is not None and cacheable:cache[url]=result
    return result
-  except HTTPError as e:
-   if e.code not in (502,503,504):raise
-   return self.raw(url,limit)
+  except OSError as e:
+   if not isinstance(e,HTTPError) or e.code>=500:
+    self.failures=getattr(self,'failures',0)+1
+    if self.failures>=3:raise RuntimeError('Þrjár samfelldar tengivillur; birgi frestað. Fyrri vistuð gögn varðveitt.') from e
+   raise
 
 def base(key,supplier,name,url,sku='',category='',subcategory=''):
  return dict(key=key,supplier=supplier,name=plain(name),url=url,sku=str(sku or ''),category=category,subcategory=subcategory,brand='',price=None,currency='ISK',vat_included=None,vat_rate=None,pack_quantity=None,unit='',observed_at=now(),availability='Lagerstaða óstaðfest',price_status='Verð vantar',note='',collector='v0.3')
@@ -127,8 +137,8 @@ def parse_thor(p):
  pack(r,r['name'])
  r['availability']='Til samkvæmt birgjaviðmóti' if p.get('is_in_stock') else 'Ekki á lager samkvæmt birgjaviðmóti'
  r['note']='Opinbert Store API. Verð nær til sölueiningar; pakkastærð og VSK eru ekki áætluð. '+('Afbrigðisvara; grunnverð ekki notað sem verð afbrigðis.' if p.get('type')=='variable' else '')
- from product_extras import image_url
- r['image_url']=next((u for img in p.get('images',[]) if isinstance(img,dict) and (u:=image_url(img.get('src','')))), '')
+ from product_extras import usable_image
+ r['image_url']=next((u for img in p.get('images',[]) if isinstance(img,dict) and (u:=usable_image(img.get('src','')))), '')
  from product_extras import page_details
  r['documents']=page_details((p.get('description') or '')+' '+(p.get('short_description') or ''),r['url'])['documents']
  r['description']=plain(p.get('short_description') or p.get('description'))[:8000]
@@ -148,8 +158,8 @@ def parse_husa(body,url):
  if price:
   value=float(price[1].replace('.','').replace(',','.'))
   if value>0:r.update(price=value,vat_included=True,price_status='Birt vefverð með VSK; skatthlutfall óstaðfest')
- from product_extras import page_image
- r['image_url']=page_image(body,url)
+ from product_extras import page_details
+ r.update(page_details(body,url))
  pack(r,name)
  r['availability']='Ekki til á vef samkvæmt birgi' if 'Ekki til á vef' in plain(region) else 'Lagerstaða þarf staðfestingu hjá birgi'
  r['note']='Vörusíða lesin sjálfvirkt. VSK innifalinn samkvæmt söluskilmálum; skatthlutfall og magn einingar eru ekki áætluð.'
@@ -203,7 +213,7 @@ def husa(client,previous,state,progress,budget):
   checked+=1;work_done+=1;progress(dict(stage=f'Vörusíða {checked}/{min(budget,len(urls))}',loaded=len(records),expected=len(urls),work_done=work_done,work_total=work_total,scan_done=checked,scan_total=len(urls)))
  return list(records.values()),dict(status='partial',scope='Síðukort í lotum; ekki allar slóðir eru vörur',loaded=len(records),expected=len(urls),index=index,cursor=(cursor+checked)%len(urls),checked_this_run=checked,errors=errors[:30],checked_at=now(),robots=client.robot_status)
 
-def run(root=ROOT,husa_limit=100,selected=None,index_only=False,sitemap_cache=None):
+def run(root=ROOT,husa_limit=100,selected=None,index_only=False,sitemap_cache=None,client_cache=None):
  directory=root/'data';directory.mkdir(exist_ok=True)
  lock=directory/'market-sync.lock'
  if lock.exists() and not is_running(lock):lock.unlink(missing_ok=True)
@@ -240,7 +250,10 @@ def run(root=ROOT,husa_limit=100,selected=None,index_only=False,sitemap_cache=No
    if key not in DIRECTORIES and key not in ('thor','husa','landvelar','dynjandi','tengi'):
     return key,(previous,dict(status='not_connected',scope='Sérstök vörutenging ekki tilbúin; engar vefbeiðnir sendar',loaded=len(previous),checked_at=now()))
    progress(key,{'stage':'Tengist birgi og athugar aðgang','started_at':now()})
-   c=Client(origin)
+   c=client_cache.get(key) if client_cache is not None else None
+   if c is None:
+    c=Client(origin)
+    if client_cache is not None:client_cache[key]=c
    c.sitemap_cache=sitemap_cache
    c.index_only=index_only;c.record_index=lambda urls:record_index(key,urls)
    if key=='thor':return key,thor(c,previous,statuses.get(key,{}),lambda i:progress(key,i))
@@ -252,13 +265,16 @@ def run(root=ROOT,husa_limit=100,selected=None,index_only=False,sitemap_cache=No
    return key,(previous,{**statuses.get(key,{}),'status':'blocked' if isinstance(e,AccessBlocked) or isinstance(e,HTTPError) and e.code in (401,403,429) else 'error','error':str(e),'loaded':len(previous),'checked_at':now(),'scope':'Fyrri athuganir varðveittar; engin fersk uppfærsla'})
  try:
   snapshot()
-  with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+  with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
    futures=[pool.submit(worker,key) for key in chosen]
    for future in concurrent.futures.as_completed(futures):
     key,(rows,status)=future.result()
     previous={r['key']:r for r in old['products'] if r['supplier']==SOURCES[key][0]}
+    from product_extras import preserve_media
+    if not index_only and status.get('status') in ('ok','partial'):
+     rows=[preserve_media(r,previous.get(r['key'],{})) for r in rows]
     added=sum(r['key'] not in previous for r in rows)
-    changed=sum(r['key'] in previous and any(v!=previous[r['key']].get(k) for k,v in r.items() if k!='observed_at') for r in rows)
+    changed=sum(r['key'] in previous and any(v!=previous[r['key']].get(k) for k,v in r.items() if k not in ('observed_at','details_checked_at')) for r in rows)
     with guard:
      status['last_attempt_at']=status.get('checked_at',now())
      status['last_success_at']=statuses.get(key,{}).get('last_success_at')
@@ -274,7 +290,9 @@ def run(root=ROOT,husa_limit=100,selected=None,index_only=False,sitemap_cache=No
   # Public price observations only; append on price/availability change, never rewrite old observations.
   with sqlite3.connect(directory/'market-history.sqlite') as db:
    db.execute('CREATE TABLE IF NOT EXISTS observations (id INTEGER PRIMARY KEY, product_key TEXT, observed_at TEXT, price REAL, currency TEXT, availability TEXT)')
-   for r in products:
+   db.execute('CREATE INDEX IF NOT EXISTS observations_product_latest ON observations(product_key,id DESC)')
+   # Only selected suppliers can have new observations; use an indexed lookup.
+   for r in (row for rows in results.values() for row in rows):
     prev=db.execute('SELECT price,currency,availability FROM observations WHERE product_key=? ORDER BY id DESC LIMIT 1',(r['key'],)).fetchone()
     current=(r['price'],r['currency'],r['availability'])
     if prev!=current:db.execute('INSERT INTO observations(product_key,observed_at,price,currency,availability) VALUES(?,?,?,?,?)',(r['key'],r['observed_at'],*current))

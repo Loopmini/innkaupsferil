@@ -7,18 +7,19 @@ def full_pass(root,stop,selected=None):
     previous=load(root/'data/market-status.json',{}).get('sources',{})
     pending=list(SOURCES) if selected is None else list(dict.fromkeys(selected));
     if not pending or any(k not in SOURCES for k in pending):raise ValueError("Veldu að minnsta kosti einn þekktan birgi.")
+    client_cache={}
     sitemap_cache={} # Reuse indexes only within this pass; the next run fetches fresh indexes.
     starts={k:previous.get(k,{}).get('next_page',1) for k in pending}
     travelled={k:0 for k in pending};rounds={k:0 for k in pending}
-    state={'selected':pending.copy(),'concurrency':2,'running':True,'started_at':now(),'completed':[],'failed':{},'pending':pending.copy(),'current':None,'batches':0,'counts':{}}
+    state={'selected':pending.copy(),'concurrency':4,'running':True,'started_at':now(),'completed':[],'failed':{},'pending':pending.copy(),'current':None,'batches':0,'counts':{}}
     atomic(path,state)
     try:
         while pending and not stop.is_set():
-            batch=pending[:2];pending=pending[2:]
+            batch=pending[:4];pending=pending[4:]
             state.update(current=batch,pending=batch+pending);atomic(path,state)
             previous=load(root/'data/market-status.json',{}).get('sources',{})
-            # run owns the single writer lock and uses two source workers.
-            result=run(root=root,selected=batch,sitemap_cache=sitemap_cache)
+            # run owns the single writer lock and uses four source workers.
+            result=run(root=root,selected=batch,sitemap_cache=sitemap_cache,client_cache=client_cache)
             for key in batch:
                 before=previous.get(key,{});after=result['sources'][key]
                 rounds[key]+=1;state['batches']+=1

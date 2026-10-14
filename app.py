@@ -167,11 +167,16 @@ def read_catalogue():
         extra.extend(procurement.reply_offers(db))
         images={r['offer_id']:r['url'] for r in db.execute('SELECT * FROM product_images')}
         details={r['offer_id']:json.loads(r['data']) for r in db.execute('SELECT * FROM product_details')}
-    from product_extras import image_url
+    from product_extras import usable_image
     for r in offers+extra:
-        r.update(details.get(r['id'],{}))
+        from product_extras import preserve_media
+        cached=details.get(r['id'],{})
+        if cached.get('details_checked_at','')>r.get('details_checked_at',''):
+            r.update(preserve_media(cached,r))
+        else:
+            r.update(preserve_media(r,cached))
         r['manual_category']=overrides.get(r['id'],'')
-        r['image_url']=image_url(r.get('image_url') or images.get(r['id'],''))
+        r['image_url']=usable_image(r.get('image_url') or images.get(r['id'],''))
         if r['id'] in terms:r['terms']=terms[r['id']]
         taxonomy.enrich(r,enrichments.get(r['id'],{}))
     with connect() as db:metadata['relation_index']=[dict(r) for r in db.execute('SELECT a,b,kind FROM product_relations')]
@@ -195,14 +200,14 @@ def supplier_details(oid):
     if offer.get('source_kind')!='market' or offer.get('link_kind')=='category':return {}
     with connect() as db:
         cached=db.execute('SELECT * FROM product_details WHERE offer_id=?',(oid,)).fetchone()
-    if cached and json.loads(cached['data']).get('details_version',0)>=3 and (datetime.now(timezone.utc)-datetime.fromisoformat(cached['checked_at'])).total_seconds()<86400:return json.loads(cached['data'])
-    from market_sync import Client,SOURCES
-    from product_extras import page_details
+    if cached and json.loads(cached['data']).get('details_version',0)>=4 and (datetime.now(timezone.utc)-datetime.fromisoformat(cached['checked_at'])).total_seconds()<86400:return json.loads(cached['data'])
+    from market_sync import Client,SOURCES,AccessBlocked
+    from product_extras import page_details,preserve_media
     url=offer.get('url','');origin=next((origin for name,origin in SOURCES.values() if name==offer['supplier'] and urlsplit(origin).hostname==urlsplit(url).hostname),None)
     if not origin:return {}
     try:body,_=Client(origin).get(url)
-    except (OSError,ValueError) as e:raise ValueError('Ekki tókst að sækja vöruupplýsingar frá birgi.') from e
-    details=page_details(body,url)
+    except (OSError,ValueError,AccessBlocked) as e:raise ValueError('Ekki tókst að sækja vöruupplýsingar frá birgi.') from e
+    details=preserve_media(page_details(body,url),offer)
     if not details['image_url']:details['image_url']=offer.get('image_url','')
     details['details_checked_at']=datetime.now(timezone.utc).isoformat()
     with connect() as db:db.execute('INSERT OR REPLACE INTO product_details VALUES(?,?,?)',(oid,json.dumps(details,ensure_ascii=False),details['details_checked_at']))

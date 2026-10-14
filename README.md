@@ -410,3 +410,16 @@ Húsasmiðjuyfirferð les nú hverja slóð einu sinni í hverri hringferð. Auk
 Þetta er fækkun beiðna, ekki mæld hraðaaukning á lifandi vef. Tveggja sekúndna lágmarksbil og reglur birgja haldast. Stórt safn getur enn tekið langan tíma; fullur verðlisti/API frá birgi er hagkvæmari en lestur hverrar vörusíðu. Hraðskoðun síðukorts telur slóðabreytingar en staðfestir ekki verðbreytingar. Ískraftstengingin er áfram ein vöruslóð, ekki full vöruskrá.
 
 Prófað: 109 Python-próf (þar af fjögur ný fyrir flokkun sagar/efnis/blaðs, bann án vefbeiðni, endurnýtingu síðukorts og enga tvílesningu eldri vara). Engin lifandi mæling á hraða eða ný athugun á framboði API birgja.
+
+
+## Hraðari innlestur og vörugögn · v0.16
+
+- Allt að fjórir óháðir birgjar lesnir samtímis. Sama birgjasíða heldur sínu beiðnabili og robots-reglum. Heildaryfirferð endurnýtir Client/robots-athugun og síðukort milli lota; næsta keyrsla byrjar ferskt.
+- Þjöppuð gzip-svör studd með stærðarmörkum á afþjöppuðum gögnum. Þrjár samfelldar tengivillur/þjónsvillur stöðva birginn fyrir þessa keyrslu; aðrir halda áfram. Fyrri vistuð gögn haldast. Óvistaðar breytingar í misheppnaðri lotu þarf að sækja aftur.
+- Verðsagan fær vísitölu fyrir nýjustu athugun vöru og er aðeins yfirfarin fyrir valda birgja. Ekki er lengur leitað í allri sögutöflunni fyrir hverja vöru hjá öllum birgjum í hverri lotu.
+- Húsasmiðju-/Ískraftsvörusíður skila nú lýsingu, tæknieiginleikum, myndum og gagnablöðum úr sama síðulestri. Það krefst ekki aukabeiðni fyrir hvert svið.
+- Mynd vörunnar í JSON-LD fær forgang yfir almenna samfélagsmiðlamynd. Þegar margar vörur eru í lýsigögnum þarf samsvörun við vöruslóðina; annars er ekki valin mynd af handahófskenndri annarri vöru. Sérmerktar vörumyndir með lazy-load eru varaleið. Algengar placeholder-/logóslóðir eru útilokaðar.
+- Gagnablöð finnast einnig í Product-lýsigögnum og niðurhalstenglum með fyrirspurnarhluta. Tækniskjalatenglar án PDF-endingar eru merktir óstaðfestu skjalasniði; flipatenglar innan sömu síðu og algengir lagaskilmálar eru útilokaðir. Skjölin eru tengd við upprunasíðu; tæknilegt innihald og nákvæmt afbrigði þarf enn að yfirfara.
+- Nýrri crawler-gögn fá forgang yfir eldra upplýsingaskyndiminni. Eldri myndir/skjöl haldast ef nýr útdráttur finnur ekkert, en eru merkt úr fyrri lestri og þarfnast yfirferðar. Hleðsluvilla er ekki sett fram sem sönnun þess að ekkert gagnablað sé til. Eldri útdráttarútgáfa er endurnýjuð við opnun vöruspjalds; nýir innlestrar nota v4.
+
+119 Python-próf og DOM-próf staðfesta m.a. fjóra samtímis birgja, endurnýtingu Clients, tengivillustöðvun, gzip/stærðarmörk, mynd úr réttri Product-færslu, lazy-load, PDF-niðurhalstengla, gögn frá Húsasmiðju og varðveislu/röðun nýrra og eldri lýsigagna. Engin lifandi hraðamæling eða Windows-sjónræn prófun hefur verið gerð. Þessar breytingar bæta núverandi tengingar; þær búa ekki til heildartengingu fyrir óútfærða birgja. Ískraftur er enn takmarkaður við eina vöruslóð. Fullur verðlisti eða heimilað API frá birgi er áfram betri lausn en lestur þúsunda síðna. Myndir/skjöl á bak við innskráningu eða eingöngu í JavaScript geta enn vantað. Skjalatengill er ekki trygging fyrir virkum aðgangi eða réttu tæknilegu afbrigði.
