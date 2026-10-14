@@ -245,3 +245,69 @@ AI-uppsetning úr v0.7 fylgir áfram, nú með samræmdum flokkunarstígum og t�
 ### Það sem bíður gagna
 
 Flokkunartréð býr ekki sjálft til vöruúrval. Ef timbur, málmar eða aðrir flokkar eru tómir þarf staðfestar birgjafærslur. Verð eitt nægir ekki til samanburðar þegar eining, pakkastærð eða VSK er óþekkt. Óstaðfest gildi eru ekki fyllt sjálfvirkt. Engin full sjálfvirk yfirferð tæknilegs jafngildis, lagerstöðu eða afhendingar hefur verið gerð. Yfirlit yfir umfang gagna í einkapakkanum fylgir í `GAGNASTADA.txt`; einkagögnin eru ekki í GitHub.
+
+## Spjall og innlestrarvakt · v0.9
+
+Veldu **Spjalla við Njörð** í vinstri valmynd. Lýstu þörfinni, t.d. „Mig vantar 20 stk. af 5 mm stálborum“, og spurðu áfram til að þrengja valið. Spjallið notar fyrirliggjandi OpenAI-tengingu og sama `.env` lykil. Án lykils birtast leiðbeiningar um virkjun. Enginn nýr lykill fylgir.
+
+Spjallið myndar allt að fimm leitarorðasambönd, leitar í innlesnum markaðs-/verðlistavörum og gefur AI allt að 40 samsvaranir. Allt að átta vöruspjöld birtast með verði úr gagnagrunni, birgja, vörunúmeri, athugunardegi og tengli. Auðkenni svara eru sannreynd gegn vörunum sem voru sendar. Opnaðu vöruspjald til að bæta á BOM með eigin magni. AI sendir hvorki pöntun né vistar sjálft breytingar. Spjallið er ekki tæmandi vefleit eða tæknileg jafngildisstaðfesting.
+
+Tvö afmörkuð API-köll eru gerð á hverju svari. Skilaboðin þín, síðustu átta spjallskilaboð og afmarkaðar vöruupplýsingar fara til OpenAI. Einkareikningar og eldri innkaupalínur eru útilokuð úr vöruleit spjallsins. Spjallsaga er aðeins í minni vafrans, hverfur við endurhleðslu og má hreinsa með „Nýtt spjall“.
+
+Innlestrarvakt sést fyrir ofan vörugrunninn. Hún sýnir bið, virkan lestur, síðasta framvindumerki, aðgangshöfnun/villur, vistun, birgja afgreidda, tíma sem liðinn er og nýjar/breyttar færslur. „Staða hvers birgis“ opnar nánari yfirlit. Meðan lestur er í gangi er staða sótt á þriggja sekúndna fresti, annars á 15 sekúndna fresti. Hægur birgir felur ekki lengur niðurstöðu þess sem lýkur fyrr.
+
+Framvindustikan telur afgreidda birgja, ekki vörur eða öruggt hlutfall af öllum markaði. Vöru-/slóðafjöldi úr birgjagögnum er merktur sem viðmið. Engin ágiskuð lokatímaspá. Breytingateljarar undanskilja breytingu á athugunardegi einum og sér; í heildarumferð geta þeir talið sömu vöru aftur ef hún breytist milli lota. Ný gögn vistast þegar lotu lýkur. Við stöðvun klárast virkar lotur fyrst; þögn frá birgi birtist sem tími frá síðasta merki, ekki sjálfkrafa sem bilun.
+
+Windows UTF-8 viðgerðin fylgir. Prófanir: 72 Python-próf, Node-próf fyrir leit/BOM/flokkun og DOM-próf fyrir spjall, framhaldsspurningar, vöruspjöld og innlestrarstöðu. Raunveruleg AI-köll bíða lykils í keyrsluumhverfi notanda; prófað hér með hermdum API-svörum.
+
+
+## Áfangauppfærsla · v0.10
+
+Þessi útgáfa byggir á núverandi SQLite-gögnum, birgjatengingum og flokkun. Engin endurstilling eða eyðing vörugagna er hluti uppfærslunnar. Windows-villan sem gat falið allar vörur var hleðsluvilla: íslensk JSON-flokkanöfn voru lesin með cp1252 í stað UTF-8. Það er leiðrétt. Nýjar hleðsluvillur birtast sem villur, ekki sem tómur grunnur.
+
+### Uppfærsla núverandi uppsetningar
+
+1. Lokaðu keyrandi Njörði (Ctrl+C í ræsingarglugganum) og taktu afrit af allri núverandi möppu.
+2. Afþjappaðu `Njordur_v010_uppfaersla.zip`. Afritaðu innihald `Innkaupsferil` yfir sömu forritsmöppu og leyfðu yfirskrift kóðaskráa. Ekki búa til nýja tóma uppsetningu.
+3. Uppfærslupakkinn hefur hvorki `data/` né `.env`; núverandi gögn og lykill haldast. Ræstu `Starta-Windows.bat` aftur og endurhlaðaðu síðunni með Ctrl+F5.
+4. Skoðaðu vörufjölda og vistaða lista. Undir „Gagnavarsla, afrit og innflutningssaga“ má taka og sækja ZIP-afrit.
+
+### Áfangi 1 — gagnavarsla og innlestur
+
+SQLite-afrit eru tekin með backup API, einnig við ræsingu og fyrir birgjainnlestrarumferð. Afrit geyma vörugrunn, lista og markaðsskrár en aldrei `.env`. Endurheimt sannreynir skráarheiti, SHA-256, JSON og SQLite áður en hún tekur björgunarafrit og skrifar gögn. Skrár sem vantar í gamalt afrit eru ekki fjarlægðar. Afrit eru á sama diski, engin sjálfvirk grisjun: sækja þarf afrit og geyma annars staðar.
+
+Verðlista-CSV, BOM og tilboðssvör hafa forskoðun og sérstaka staðfestingu. Verðlisti sýnir nýjar, breyttar, óbreyttar og mögulega tvíteknar færslur. Sama birgir/vörunúmer uppfærist; sama BOM-innflutningur með sama heiti opnar fyrri lista. Svör uppfæra sömu birgja/línu. Heimild og innflutningsdagur varðveitast. Innflutningssaga býður afturköllun þegar síðari breytingar eða notkun vörunnar gera hana ekki óörugga. Annars þarf að afturkalla nýrri breytingar fyrst eða nota afrit.
+
+Vefinnlestur sýnir raunveruleg stig og fjölda, en notar enn fyrra sjálfvirka vistunarferli eftir lotu. **Forskoðun og samþykki einstakra vefbreytinga er enn óútfært.** Fyrir slíkar lotur er afrit til endurheimtar; sértæk afturköllun einnar birgjalotu bíður.
+
+### Áfangi 2 — vöruspjöld og samanburður
+
+Leit birtir eitt spjald fyrir sama þekkta GTIN eða framleiðanda+MPN, annars birgi+vörunúmer. Upprunafærslur eru varðveittar. Heiti eitt sameinar ekki vörur. Vöruspjald sýnir tilboð, tengla, heimildir og mögulegar staðgöngur með mismun/óþekktum eiginleikum. Ófullkomin auðkenni geta því enn valdið fleiri en einu spjaldi fyrir raunverulega sömu vöru.
+
+Skrá má staðfest/áætlað lágmarksmagn, viðbótarafslátt, gildistíma og afhendingardag á vöru. BOM námundar upp í heilar pakkningar og virðir MOQ. Óþekkt verð, VSK, eining eða pakkning hindrar línusamanburð; óþekkt MOQ eða birgjagjöld hindra fulla heildartölu. Engin óstaðfest eininga- eða gengisumbreyting.
+
+### Áfangi 3 — vistaðir listar og birgjaval
+
+Listi geymir verkefni, afhendingarstað, óskadag, gjaldmiðil, birgjaskilmála og handvirkt val hverrar línu. Reiknaðar eru leiðir fyrir lægsta þekkta kostnað, fæsta birgja og afhendingu fyrir dag. Gjöld eru föst fyrir hverja birgjapöntun, án VSK. Allar birgjasamsetningar eru skoðaðar upp að 12 birgjum; yfir því er samanburður afmarkaður og merktur.
+
+„Sækja innkaupaleiðir og heildarkostnað CSV“ flytur út línur með birgjaafslætti, pakkafjölda, keyptu magni, gjöldum, heild og stöðu hvers valkosts. Óþekkt heild er tóm og merkt, aldrei núll. Eldri línuverðsútflutningur er áfram aðskilinn og merktur án birgjagjalda.
+
+Óútfært: magnþrepaverð, flutningsverð eftir þyngd/magni, samnýting pakkninga milli ólíkra BOM-lína og breyting magnreita á þegar vistuðum línum. Magn má velja í drögum/innflutningi; til að breyta heildarlista er hægt að lesa inn endurskoðaðan lista með nýju heiti.
+
+### Áfangi 4 — leit, innkaupadrög og spjall
+
+Forsíða hefur vöruspjöld, flokka og nýlega lista. Flokkasíur sýna viðeigandi mál fyrir timbur/plötur eða þvermál, DN og PN fyrir lagnir. Hliðarspjald safnar vörum úr leit eða spjalli, sameinar sama auðkenni og biður notanda um magn/einingar áður en hann samþykkir vistaðan lista. Óvistuð drög og spjall eru aðeins í minni vafrans.
+
+Spjall nýtir fyrirliggjandi OpenAI-stillingar og raunverulegar innlesnar vörur; enginn nýr lykill þarf að vera settur í BAT-skrá. Einkainnkaup og BOM-tilboðssvör fara ekki í almenna vöruleit spjallsins. AI-texti er tillaga, ekki staðfesting tæknilegs jafngildis. Verð á spjöldum og útreikningar koma úr gögnum. API-prófanir hér eru hermdar; lifandi kall og útlitsprófun í Windows-vafra bíða keyrslu notanda.
+
+### Áfangi 5 — tilboðsbeiðnir og svör
+
+CSV-tilboðsbeiðni inniheldur stöðug lista-/línuauðkenni, magn/einingar, lýsingu, tæknikröfur og afhendingarupplýsingar. Sama skrá er svarssniðmát. Innlestur svara sannreynir línutengingar og hefur forskoðun. Svör eru ekki sjálfkrafa samþykkt sem tæknilega jafngild; kröfur úr beiðni verða ekki sjálfkrafa að staðfestum eiginleikum svars.
+
+Enginn sendingarhnappur eða tölvupóststenging er virk; notandi sækir skjalið og sendir sjálfur. Sjálfvirkur lestur óstaðlaðra PDF-/tölvupóstsvara bíður. Gagnablöð haldast sem tenglar, PDF-innihald er ekki túlkað sjálfvirkt.
+
+### Staðfesting og gögn sem vantar
+
+81 Python-próf og 5 Node-prófasöfn: vistun/enduropnun í nýju ferli, endurtekinn innflutningur, örugg afturköllun, skemmd afrit, svör á sömu línu, pakkningar, MOQ, óþekkt gjöld, handvirkt val, afhending, flokkun og leit. DOM-próf ná yfir spjall/framvindu og leið frá innkaupadrögum yfir í vistaðan lista/birgjaval. Engin raunveruleg pöntun, sending eða API-kall var gert.
+
+Nýju eiginleikarnir fylla ekki upp vantaðar birgjaupplýsingar. Timbur/málmar og aðrir tómir flokkar bíða staðfestra vörufærslna. Pakkningar, VSK, flutningur, MOQ og afhending þurfa staðfestar heimildir áður en viðkomandi tilboð fær fulla heildartölu.

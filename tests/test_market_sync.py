@@ -41,3 +41,29 @@ class PersistenceTest(unittest.TestCase):
    robot_status='test'
    def get(self,url):return '[]',{'X-WP-Total':'10','X-WP-TotalPages':'1'}
   with self.assertRaises(ValueError):thor(Client(),[],{},lambda x:None)
+
+class LiveProgressTest(unittest.TestCase):
+ def test_fast_supplier_reports_before_slow_and_change_counts(self):
+  import threading,tempfile,json
+  from pathlib import Path
+  from unittest.mock import patch
+  import market_sync as m
+  with tempfile.TemporaryDirectory() as td:
+   root=Path(td);release=threading.Event();observed=[];original=m.atomic
+   prior={'key':'old','supplier':'Þór hf.','name':'Bor','price':100,'currency':'ISK','availability':'unknown','observed_at':'2026-01-01'}
+   original(root/'data/market-live.json',{'products':[prior],'meta':{}})
+   def save(path,data):
+    original(path,data)
+    if path.name=='market-status.json' and data.get('runtime',{}).get('husa',{}).get('phase')=='ok' and data.get('runtime',{}).get('thor',{}).get('phase')=='running':
+     observed.append(json.loads(path.read_text(encoding='utf-8')));release.set()
+   def slow(client,previous,state,progress):
+    progress({'stage':'Síða 1/2','loaded':1,'expected':2})
+    if not release.wait(3):raise ValueError('fast source progress never arrived')
+    return [{**prior,'price':120}],{'status':'ok','loaded':1}
+   def fast(*args):
+    return [{'key':'new','supplier':'Húsasmiðjan','name':'Vara','price':50,'currency':'ISK','availability':'unknown','observed_at':'2026-01-01'}],{'status':'ok','loaded':1}
+   with patch('market_sync.Client'),patch('market_sync.atomic',side_effect=save),patch('market_sync.thor',side_effect=slow),patch('market_sync.husa',side_effect=fast):
+    r=m.run(root,selected=['thor','husa'])
+   self.assertTrue(observed);self.assertEqual(observed[0]['runtime']['thor']['stage'],'Síða 1/2')
+   self.assertEqual(r['runtime']['thor']['changed_products'],1);self.assertEqual(r['runtime']['husa']['new_products'],1)
+   self.assertFalse(r['running']);self.assertEqual(r['phase'],'saved')

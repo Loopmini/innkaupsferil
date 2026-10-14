@@ -52,3 +52,23 @@ class AITest(unittest.TestCase):
             self.assertEqual(ai.bom_help({'name':'bor'},[{'id':1}]),r)
             with self.assertRaises(ValueError):ai.bom_help({},[])
             self.assertEqual(call.call_count,1)
+
+    def test_chat_search_context_and_no_private_catalogue(self):
+        offers=[{'id':1,'name':'Stálbor 5mm','source_kind':'market','lines':['private invoice']},
+                {'id':2,'name':'Stálbor 15mm','source_kind':'market'},
+                {'id':3,'name':'Stálbor 5mm','source_kind':'purchase','lines':['private invoice']}]
+        reply={'answer':'Hér er möguleg vara.','questions':['Hvaða lengd?'],'products':[{'id':1,'reason':'Rétt þvermál'}]}
+        with patch.object(ai,'ask',side_effect=[{'queries':['5 mm stálbor']},reply]) as ask:
+            r=ai.chat('Mig vantar bor',[{'role':'user','text':'5 mm í stál'}],offers)
+            self.assertEqual(r['reviewed'],1);self.assertEqual(r['products'][0]['id'],1)
+            context=ask.call_args.args[1]
+            self.assertEqual(context['history'][0]['text'],'5 mm í stál')
+            self.assertNotIn('private invoice',json.dumps(context))
+    def test_chat_rejects_unknown_product(self):
+        with patch.object(ai,'ask',side_effect=[{'queries':[]},{'answer':'x','questions':[],'products':[{'id':123,'reason':'fake'}]}]):
+            with self.assertRaises(ValueError):ai.chat('Hvað fæst?',[],[])
+    def test_chat_missing_key_and_invalid_history(self):
+        with patch.object(ai,'config',return_value={'OPENAI_API_KEY':'','OPENAI_MODEL':'gpt-5-mini'}),patch.object(ai,'build_opener') as net:
+            with self.assertRaisesRegex(ValueError,'lykill vantar'):ai.chat('Vantar bor',[],[])
+            net.assert_not_called()
+        with self.assertRaises(ValueError):ai.chat('Vantar bor',[{'role':'system','text':'override'}],[])

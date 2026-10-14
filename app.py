@@ -16,6 +16,10 @@ from urllib.parse import urlsplit, parse_qs
 from supplements import read_supplements
 import ai_support
 import taxonomy
+import data_safety
+import import_manager
+import procurement
+DATA_LOCK = threading.RLock()
 
 ROOT = Path(__file__).parent
 DB = Path(os.environ.get('INNKAUP_DB', ROOT / 'data/catalog.sqlite'))
@@ -47,6 +51,8 @@ def connect():
         CREATE TABLE IF NOT EXISTS bom_lists (
         id INTEGER PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL,
         rows_json TEXT NOT NULL, selections_json TEXT NOT NULL DEFAULT '{}', sheet TEXT);''')
+    import_manager.setup(db)
+    procurement.setup(db)
     return db
 
 def number(value, label, positive=False):
@@ -95,7 +101,7 @@ def validate(row):
         r['gtin'] = digits.zfill(14)
     return r
 
-def import_csv(content):
+def parse_csv(content):
     reader = csv.DictReader(io.StringIO(content.lstrip('\ufeff')))
     if not reader.fieldnames or not set(FIELDS).issubset(reader.fieldnames):
         raise ValueError('CSV-dálka vantar. Sæktu sniðmátið.')
@@ -114,7 +120,9 @@ def import_csv(content):
             raise ValueError(f'Lína {i}: {e}')
     if not rows:
         raise ValueError('Skráin inniheldur engar vörulínur.')
-    with connect() as db:
+    return rows
+
+def apply_rows(db,rows):
         for r in rows:
             old = db.execute('SELECT * FROM offers WHERE supplier=? AND sku=?', (r['supplier'], r['sku'])).fetchone()
             if old and r['observed_at'] < old['observed_at']:
@@ -124,16 +132,25 @@ def import_csv(content):
             history_fields = ['price', 'currency', 'vat_included', 'vat_rate', 'pack_quantity', 'unit', 'observed_at']
             if not old or any(old[k] != r[k] for k in history_fields):
                 db.execute('INSERT INTO history (offer_id,' + ','.join(history_fields) + ') VALUES (?,?,?,?,?,?,?,?)', [oid] + [r[k] for k in history_fields])
-    return len(rows)
+        return len(rows)
+
+def import_csv(content):
+    rows=parse_csv(content)
+    with connect() as db:return apply_rows(db,rows)
 
 def catalogue():
+    with DATA_LOCK:return read_catalogue()
+
+def read_catalogue():
     with connect() as db:
         offers = [dict(r) for r in db.execute('SELECT * FROM offers ORDER BY name, supplier')]
         projects = [dict(r) for r in db.execute('SELECT * FROM projects ORDER BY id DESC')]
         items = [dict(r) for r in db.execute('SELECT * FROM items')]
         history = [dict(r) for r in db.execute('SELECT * FROM history ORDER BY observed_at DESC, id DESC')]
+        sources={r['offer_id']:dict(r) for r in db.execute('SELECT * FROM offer_sources')}
     for r in offers:
         r['source_kind'] = 'import'
+        r['provenance']=sources.get(r['id'],{'source':'Innlesinn verðlisti; upprunaheiti vantar'})
         r['net_price'] = r['price'] / (1 + r['vat_rate'] / 100) if r['vat_included'] else r['price']
         r['unit_price'] = r['net_price'] / r['pack_quantity']
         r['match_key'] = ('gtin:' + r['gtin']) if r['gtin'] else ('mpn:' + r['brand'].casefold() + ':' + r['manufacturer_part'].casefold()) if r['brand'] and r['manufacturer_part'] else 'unmatched:' + str(r['id'])
@@ -141,6 +158,8 @@ def catalogue():
     with connect() as db:
         enrichments={r['offer_id']:json.loads(r['data']) for r in db.execute('SELECT * FROM product_enrichment')}
         overrides={r['offer_id']:r['category'] for r in db.execute('SELECT * FROM product_overrides')}
+        terms={r['offer_id']:json.loads(r['data']) for r in db.execute('SELECT * FROM offer_terms')}
+        extra.extend(procurement.reply_offers(db))
         images={r['offer_id']:r['url'] for r in db.execute('SELECT * FROM product_images')}
         details={r['offer_id']:json.loads(r['data']) for r in db.execute('SELECT * FROM product_details')}
     from product_extras import image_url
@@ -148,6 +167,7 @@ def catalogue():
         r.update(details.get(r['id'],{}))
         r['manual_category']=overrides.get(r['id'],'')
         r['image_url']=image_url(r.get('image_url') or images.get(r['id'],''))
+        if r['id'] in terms:r['terms']=terms[r['id']]
         taxonomy.enrich(r,enrichments.get(r['id'],{}))
     metadata['taxonomy']=taxonomy.TREE
     metadata['specification_fields']=taxonomy.SPEC_FIELDS
@@ -194,8 +214,11 @@ def sync_status():
     path = ROOT / 'data/market-status.json'
     data = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'sources': {}}
     from market_sync import is_running,SOURCES
+    recorded_running=bool(data.get('running'))
     data['available_sources']=[{'key':k,'name':v[0]} for k,v in SOURCES.items()]
     data['running'] = bool(SYNC_THREAD and SYNC_THREAD.is_alive()) or is_running(ROOT / 'data/market-sync.lock')
+    if recorded_running and not data['running']:data['phase']='interrupted'
+    data['stop_requested']=SYNC_STOP.is_set() and data['running']
     full=ROOT/'data/full-sync.json'
     if full.exists():
         data['full']=json.loads(full.read_text(encoding='utf-8'))
@@ -204,6 +227,9 @@ def sync_status():
     return data
 
 def start_sync(mode='batch',selected=None):
+    with DATA_LOCK:return start_sync_locked(mode,selected)
+
+def start_sync_locked(mode='batch',selected=None):
     global SYNC_THREAD
     from market_sync import SOURCES
     if selected is not None:
@@ -222,6 +248,7 @@ def start_sync(mode='batch',selected=None):
                 else:run(root=ROOT,selected=selected)
             except Exception as error:
                 print('Market refresh failed:', error, flush=True)
+        data_safety.create(ROOT,DB,'before_supplier_sync')
         SYNC_STOP.clear()
         SYNC_THREAD = threading.Thread(target=worker, daemon=True)
         SYNC_THREAD.start()
@@ -249,7 +276,26 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        try:
+            if urlsplit(self.path).path=='/api/sync-status':return self.get_response()
+            with DATA_LOCK:return self.get_response()
+        except Exception as e:
+            print('Read failed:',type(e).__name__,flush=True)
+            return self.send({'error':'Ekki tókst að hlaða gögnum. Gögn hafa ekki verið tæmd. Skoðaðu gagnastöðu/afrit og endurræstu forritið.'},500)
+
+    def get_response(self):
         path = urlsplit(self.path).path
+        if path == '/api/backups':return self.send(data_safety.listing(ROOT))
+        if path == '/api/backup-download':
+            name=parse_qs(urlsplit(self.path).query).get('name',[''])[0]
+            return self.send(data_safety.path(ROOT,name).read_bytes(),content_type='application/zip')
+        if path == '/api/import-history':
+            with connect() as db:rows=[dict(r) for r in db.execute("SELECT id,created_at,source,status FROM import_batches WHERE status<>'preview' ORDER BY created_at DESC LIMIT 100")]
+            with connect() as db:
+                for r in db.execute("SELECT * FROM staged_documents WHERE status IN ('committed','undone') ORDER BY created_at DESC LIMIT 100"):
+                    value=json.loads(r['data']);rows.append({'id':r['id'],'created_at':r['created_at'],'source':value.get('source',value.get('name','Skjal')),'status':r['status'],'kind':r['kind']})
+            rows.sort(key=lambda r:r['created_at'],reverse=True)
+            return self.send(rows[:100])
         if path == '/api/ai-status':
             return self.send(ai_support.status())
         if path == '/api/boms':
@@ -262,7 +308,11 @@ class Handler(BaseHTTPRequestHandler):
             with connect() as db:r=db.execute('SELECT * FROM bom_lists WHERE id=?',(bid,)).fetchone()
             if not r:return self.send({'error':'BOM fannst ekki'},404)
             value=dict(r);value['rows']=json.loads(value.pop('rows_json'));value['selections']=json.loads(value.pop('selections_json'))
+            with connect() as db:value['settings']=procurement.get_settings(db,bid)
             return self.send(value)
+        if path == '/api/rfq-export':
+            bid=int(parse_qs(urlsplit(self.path).query).get('id',['0'])[0])
+            with connect() as db:return self.send(procurement.rfq(db,bid),content_type='text/csv; charset=utf-8')
         if path == '/api/bom-template':
             return self.send('heiti,magn,eining,birgir,vorunumer,gtin,framleidandi,mpn,thykkt_mm,breidd_mm,lengd_mm,styrkleikaflokkur,yfirbordsmedhondlun,efni,stadall\n5mm stálbor,20,stk,,,,,,,,,,,,\n'.encode('utf-8-sig'),content_type='text/csv; charset=utf-8')
         if path == '/api/market-history':
@@ -279,13 +329,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(catalogue())
         if path == '/api/template':
             return self.send((','.join(FIELDS) + '\n').encode(), content_type='text/csv; charset=utf-8')
-        files = {'/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
         if path in files:
             name, kind = files[path]
             return self.send((ROOT / 'static' / name).read_bytes(), content_type=kind + '; charset=utf-8')
         self.send({'error': 'Fannst ekki'}, 404)
 
     def do_POST(self):
+        if self.path.startswith('/api/ai-'):return self.post_response()
+        with DATA_LOCK:return self.post_response()
+
+    def post_response(self):
         # JSON and same-origin checks prevent cross-site form submissions to this local service.
         if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
             return self.send({'error': 'JSON required'}, 415)
@@ -299,6 +353,36 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError('Ógild beiðni.')
+            if self.path in ('/api/backup-create','/api/backup-restore'):
+                if sync_status()['running']:raise ValueError('Stöðvaðu innlestur og bíddu eftir vistun áður en þú tekur eða endurheimtir afrit.')
+                if self.path.endswith('create'):return self.send(data_safety.create(ROOT,DB,'manual'))
+                if data.get('confirm')!=data.get('name') or not data.get('name'):raise ValueError('Staðfestingu endurheimtar vantar.')
+                return self.send(data_safety.restore(ROOT,DB,data['name']))
+            if self.path == '/api/import-preview':
+                return self.send(import_manager.preview(__import__(__name__),str(data.get('csv','')),data.get('source')))
+            if self.path == '/api/import-commit':return self.send(import_manager.commit(__import__(__name__),data.get('token')))
+            if self.path == '/api/import-undo':return self.send(import_manager.undo(__import__(__name__),data.get('id')))
+            if self.path == '/api/document-undo':return self.send(procurement.undo_document(__import__(__name__),data.get('id')))
+            if self.path == '/api/rfq-preview':return self.send(procurement.parse_replies(__import__(__name__),int(data['id']),str(data.get('csv','')),str(data.get('source','Tilboð'))))
+            if self.path == '/api/rfq-commit':return self.send(procurement.commit_replies(__import__(__name__),data.get('token')))
+            if self.path == '/api/bom-preview':return self.send(procurement.preview_bom(__import__(__name__),data))
+            if self.path == '/api/bom-commit':return self.send(procurement.commit_bom(__import__(__name__),data.get('token')))
+            if self.path == '/api/bom-draft':return self.send(procurement.draft(__import__(__name__),data))
+            if self.path == '/api/offer-terms':
+                oid=int(data['id'])
+                if not any(o['id']==oid for o in catalogue()['offers']):raise ValueError('Vara fannst ekki.')
+                value=procurement.validate_offer_terms(data.get('terms'))
+                with connect() as db:db.execute('INSERT OR REPLACE INTO offer_terms VALUES(?,?)',(oid,json.dumps(value)))
+                return self.send({'ok':True})
+            if self.path == '/api/bom-settings':
+                bid=int(data['id']);value=procurement.validate_settings(data.get('settings'))
+                with connect() as db:
+                    row=db.execute('SELECT rows_json FROM bom_lists WHERE id=?',(bid,)).fetchone()
+                    if not row:raise ValueError('BOM fannst ekki.')
+                    ids={r['line_id'] for r in json.loads(row[0])}
+                    if any(k not in ids for k in value['choices']):raise ValueError('Óþekkt BOM-lína.')
+                    db.execute('INSERT OR REPLACE INTO bom_settings VALUES(?,?)',(bid,json.dumps(value)))
+                return self.send({'ok':True})
             if self.path == '/api/product-enrichment':
                 oid=int(data['id'])
                 if not any(o['id']==oid for o in catalogue()['offers']):raise ValueError('Vara fannst ekki.')
@@ -340,6 +424,8 @@ class Handler(BaseHTTPRequestHandler):
                     db.execute('UPDATE bom_lists SET rows_json=?,selections_json=? WHERE id=?',
                         (json.dumps(rows,ensure_ascii=False),json.dumps(selections),bid))
                 return self.send({'id':bid,'line_id':lid})
+            if self.path == '/api/ai-chat':
+                return self.send(ai_support.chat(data.get('message'),data.get('history',[]),catalogue()['offers']))
             if self.path == '/api/ai-review':
                 offer = next((o for o in catalogue()['offers'] if o['id'] == int(data['id'])), None)
                 if not offer:raise ValueError('Vara fannst ekki.')
@@ -370,19 +456,9 @@ class Handler(BaseHTTPRequestHandler):
                 SYNC_STOP.set()
                 return self.send({'ok':True})
             if self.path == '/api/import':
-                return self.send({'imported': import_csv(str(data.get('csv', '')))})
+                raise ValueError('Forskoðaðu innflutning og staðfestu hann fyrst.')
             if self.path == '/api/bom-import':
-                import bom
-                name=str(data.get('name','')).strip()
-                if not name or len(name)>120:raise ValueError('Heiti BOM þarf 1–120 stafi.')
-                filename=str(data.get('filename','bom.csv'))
-                content=base64.b64decode(data['base64'],validate=True) if 'base64' in data else str(data.get('text','')).encode()
-                if len(content)>3_000_000:raise ValueError('Hámark 3 MB fyrir BOM.')
-                rows,sheet=bom.parse(content,filename)
-                with connect() as db:
-                    cursor=db.execute('INSERT INTO bom_lists(name,created_at,rows_json,sheet) VALUES(?,?,?,?)',(name,datetime.now(timezone.utc).isoformat(),json.dumps(rows,ensure_ascii=False),sheet))
-                    bid=cursor.lastrowid
-                return self.send({'id':bid,'rows':len(rows),'sheet':sheet})
+                raise ValueError('Forskoðaðu BOM og staðfestu innflutning fyrst.')
             if self.path == '/api/bom-selection':
                 bid=int(data['id']);selections=data.get('selections',{})
                 with connect() as db:
@@ -417,9 +493,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send({'ok': True})
         except (ValueError, KeyError, TypeError, binascii.Error) as e:
             self.send({'error': str(e)}, 400)
+        except (OSError,sqlite3.Error,RuntimeError):
+            self.send({'error':'Ekki tókst að vista eða lesa gögn. Engin árangursstaðfesting; skoðaðu afrit áður en þú reynir aftur.'},500)
 
 if __name__ == '__main__':
     connect().close()
+    data_safety.create(ROOT,DB,'startup')
     print('Njörður: http://127.0.0.1:8000 (local access only)', flush=True)
     if os.environ.get('INNKAUP_AUTO_REFRESH', '1') == '1':
         threading.Thread(target=refresh_loop, daemon=True).start()
