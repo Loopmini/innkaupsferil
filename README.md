@@ -423,3 +423,14 @@ Prófað: 109 Python-próf (þar af fjögur ný fyrir flokkun sagar/efnis/blaðs
 - Nýrri crawler-gögn fá forgang yfir eldra upplýsingaskyndiminni. Eldri myndir/skjöl haldast ef nýr útdráttur finnur ekkert, en eru merkt úr fyrri lestri og þarfnast yfirferðar. Hleðsluvilla er ekki sett fram sem sönnun þess að ekkert gagnablað sé til. Eldri útdráttarútgáfa er endurnýjuð við opnun vöruspjalds; nýir innlestrar nota v4.
 
 119 Python-próf og DOM-próf staðfesta m.a. fjóra samtímis birgja, endurnýtingu Clients, tengivillustöðvun, gzip/stærðarmörk, mynd úr réttri Product-færslu, lazy-load, PDF-niðurhalstengla, gögn frá Húsasmiðju og varðveislu/röðun nýrra og eldri lýsigagna. Engin lifandi hraðamæling eða Windows-sjónræn prófun hefur verið gerð. Þessar breytingar bæta núverandi tengingar; þær búa ekki til heildartengingu fyrir óútfærða birgja. Ískraftur er enn takmarkaður við eina vöruslóð. Fullur verðlisti eða heimilað API frá birgi er áfram betri lausn en lestur þúsunda síðna. Myndir/skjöl á bak við innskráningu eða eingöngu í JavaScript geta enn vantað. Skjalatengill er ekki trygging fyrir virkum aðgangi eða réttu tæknilegu afbrigði.
+
+
+## Samræmt viðmót · v0.17
+
+Samþykkt sjónræn forskoðun er yfirfærð á núverandi forrit: dökk hliðarvalmynd, ljós bakgrunnur, grænblár áherslulitur, læsilegt letur, þéttari töflur/spjöld og samræmdir hnappar. theme.css nær yfir vörugrunn, fjölskyldur, vöru-/birgjaspjöld, birgjayfirlit, BOM/lista, gagnaumsjón og spjall. Engin breyting á hýsingu eða gagnalíkani; engin sýnigögn úr forskoðun eru sett í rekstrargrunn.
+
+Opnun: Skoða útfærslur opnar fjölskyldu í sömu leit. Opna vöru og birgja opnar nákvæma færslu í hliðarspjaldi. Birgjaspjald notar sama fyrirkomulag. Stækka gefur töflum nær alla skjábreidd; Minnka færir aftur í hliðarspjald. Á litlum skjá fylla spjöld skjáinn. Loka/Escape skila til baka, með leit/síum varðveittum og fókus/skrunstöðu endurheimtri þegar opnunarhnappur er enn til. Smellur á bakgrunn lokar ekki spjaldi. Escape í opnu spjalli lokar fyrst spjallinu.
+
+Lyklaborð: / fer í vöruleit þegar ekki er verið að skrifa eða skoða modal-spjald. Sýnilegur fókus, sleppitengill í aðalefni, heiti spjalda fyrir skjálesara og stuðningur við minnkaða hreyfingu. Fyrri Enter/Shift+Enter-virkni spjalls og varðveisla ósends texta haldast. Merkingar um tæknilegt jafngildi, óstaðfest verð, gögn sem vantar og uppruna halda sér.
+
+Prófun: 119 Python-próf; DOM-próf með nýju þema-JavaScript nær yfir vinnusvæði, útfærsluval, spjöld, stækkun/minnkun, birgjasíu, virkan BOM og spjallsendingu/villur. CSS er ekki sjónrænt prófað í Windows-vafra; sérstaklega þarf að meta hliðarspjöld og þéttleika á skjá notandans. Gömlu virku formin eru endurnýtt; þetta er ekki sérstakt forrit. Uppfærsla eins og áður: stöðva, afrita núverandi möppu, yfirfæra kóðaskrár, varðveita data/ og .env, endurræsa og Ctrl+F5.

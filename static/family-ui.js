@@ -39,7 +39,7 @@ function renderFamilyResults(filtered){
   html+='<div class="cards product-cards">'+fs.map(f=>{
    const leaf=taxLeaves().find(l=>l.id===f.id),photo=f.offers.find(o=>o.image_url);
    const fields=familySpecKeys(f.id).filter(k=>f.offers.some(o=>o.specifications?.[k]!=null));
-   return `<article class="card product-card">${photo?`<img src="${esc(photo.image_url)}" alt="Dæmi: ${esc(photo.name)}" loading="lazy" referrerpolicy="no-referrer"><small>Dæmismynd úr úrvali · ${esc(photo.supplier)}</small>`:'<div class="card-image">Mynd ekki tiltæk</div>'}<h3>${esc(f.path.at(-1))}</h3><p>${esc(leaf?.description||'')}</p>${f.review?'<span class="pill warn">Vörutegund óviss · þarf yfirferð</span>':''}<p><b>${f.products.length} vörur/útfærslur</b> · ${f.suppliers.length} birgjar</p>${familyPriceText(f.offers)}<button data-family="${esc(f.id)}">Skoða allt úrvalið</button></article>`;
+   return `<article class="card product-card">${photo?`<img src="${esc(photo.image_url)}" alt="Dæmi: ${esc(photo.name)}" loading="lazy" referrerpolicy="no-referrer"><small>Dæmismynd úr úrvali · ${esc(photo.supplier)}</small>`:'<div class="card-image">Mynd ekki tiltæk</div>'}<h3>${esc(f.path.at(-1))}</h3><p>${esc(leaf?.description||'')}</p>${f.review?'<span class="pill warn">Vörutegund óviss · þarf yfirferð</span>':''}<p><b>${f.products.length} vörur/útfærslur</b> · ${f.suppliers.length} birgjar</p>${familyPriceText(f.offers)}<button data-family="${esc(f.id)}">Skoða útfærslur</button></article>`;
   }).join('')+'</div>';
  }
  if(!fs.length)html+='<p>Engar vörur passa við valdar síur.</p>';
