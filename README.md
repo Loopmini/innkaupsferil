@@ -197,3 +197,51 @@ Nýju reglurnar gilda sjálfkrafa um fyrirliggjandi og ný gögn þegar forriti�
 Vöruspjaldið sýnir „Gagnablöð og skjöl frá birgi“ með PDF-tenglum sem fundust á vörusíðunni eða í lýsingu vöruviðmóts. Opinber Wix-skjöl eru lesin úr tæknigögnum nákvæmrar vöru; einkamerkt skjöl eru ekki birt. Tenglar eru aðeins HTTPS, afrit eru sameinuð og þekkt persónuverndar-/skilmálaskjöl útilokuð. Skjal getur átt við vörufjölskyldu og þarf að yfirfara stærð/gerð hjá birgi. Engin fullyrðing um tæmandi skjalaþekju eða yfirferð á PDF-innihaldi.
 
 Eldri lýsigagnavistun er endurnýjuð þegar spjaldið opnast, svo skjöl geti bæst við. Barki 35-30-100024 er staðfest dæmi: RoflexDatasheet.pdf svaraði með application/pdf og PDF-skráarhaus. 45 Python-próf og fyrri DOM-próf standast. Gervigreindartenging er ekki virkjuð í þessari breytingu.
+
+## AI-aðstoð tilbúin til virkjunar · v0.7
+
+Enginn API-lykill fylgir. Forritið virkar áfram án AI. Á Windows: opnaðu `Stilla-AI-Windows.bat`, límdu þinn lykil á eftir `OPENAI_API_KEY=` í textaskránni sem opnast og vistaðu. Skráin heitir `.env` og er í sömu möppu og `app.py`; hjálparskráin yfirskrifar ekki fyrirliggjandi stillingar. Á öðrum kerfum: afrita `.env.example` í `.env` og breyta henni. Endurhlaða vefsíðunni; stillingar eru lesnar við hverja beiðni. Umhverfisbreytur hafa forgang. Ekki senda lykilinn í spjall, setja hann í GitHub eða deila `.env`.
+
+Vöruspjald: „Yfirfara og leggja til flokk“ metur vöruheiti, lýsingu, auðkenni, einingar og hvort mynd/gagnablað/verð sé skráð. Tillaga og annmarkar birtast. „Setja tillögu í flokkunarreit“ fyllir reitinn; síðan þarf að velja „Vista flokkun“. Handvirkt val breytist ekki án vistunar.
+
+BOM: opna línu og velja „AI-aðstoð við þessa línu“. Aðstoðin metur fyrstu 40 tillögur núverandi leitarkerfis, skilar allt að fimm mögulegum vörum og atriðum sem þarf að athuga. Hún leitar ekki á öllum netinu og finnur ekki vörur utan þess úrtaks. Þú samþykkir viðeigandi vörur sjálfur með reitunum í samanburðinum. Kostnaður er áfram reiknaður úr skráðum verðum, VSK, magni og pakkastærðum, aldrei úr AI-svari.
+
+Við smell eru viðkomandi vöruupplýsingar eða ein BOM-lína og afmarkaðar tillögur sendar til OpenAI. Ekki sendir reikningar, upprunaskrár, einkaglósur, kaupverð eða allur gagnagrunnurinn. Engin sjálfvirk AI-keyrsla, skjalalestur eða heildaryfirferð allra vara. Engin pöntun er send. AI getur gert mistök; tæknilegt jafngildi þarf yfirferð.
+
+Sjálfgefið líkan: `gpt-5-mini`, breytanlegt með `OPENAI_MODEL`. Python-staðalsafn, Responses API, structured outputs, `store:false`, ein beiðni samtímis, 90 sekúndna netbið og 4.000 úttakstákn að hámarki. Engar sjálfvirkar endurtilraunir. API-notkun fer á þinn OpenAI-reikning. Stöðumerkingin „Lykill skráður“ staðfestir aðeins að gildi sé til staðar; fyrsta aðgerð prófar aðganginn. Villur um lykil, kvóta, líkan og nettengingu birtast án þess að lykill eða hrátt API-svar sé sýnt.
+
+Staðfest með hermdum API-svörum; raunverulegt API-kall bíður lykils. Keyra próf með `python3 -m unittest discover -s tests` og Node-prófin í `tests/`.
+
+## Vöruflokkun fyrir innkaup · v0.8
+
+Flokkunin er fyrir vöruleit, birgjasamanburð og BOM, ekki bókhald. `seeds/taxonomy.json` skilgreinir eina samræmda leið fyrir hverja vörutegund: yfirflokkur → undirflokkur → vörutegund. Núverandi flokkar eru færðir í þessa uppbyggingu við lestur; upprunalegar færslur og birgjaflokkar varðveitast. Tómar greinar sjást og eru merktar „Bíður vörugagna“.
+
+| Fyrri flokkar | Nýr aðalstaður |
+| --- | --- |
+| Borar og snittvörur; handverkfæri; rafmagnsverkfæri; skurðar-/slípivörur; suðuvörur; stigar | Verkfæri og fylgihlutir, aðgreindir undirflokkar |
+| Festingar og skrúfur; þéttingar og pakkningar | Festingar og þéttingar |
+| Slöngur og tengi; dælur | Dælur, slöngur og vökvabúnaður |
+| Lokar og lagnaefni; hreinlætistæki | Lagnir og tengihlutir |
+| Rafbúnaður og lýsing | Rafmagn og lýsing; sérhæfð stýring/mæling fær eigin yfirflokk |
+| Málning; efnavörur og smurefni | Málning, lím og efnavörur |
+| Vinnufatnaður og öryggi | Vinnuvernd og vinnufatnaður |
+| Hífing, keðjur og veiðarfæri | Lyfti- og flutningsbúnaður eða Veiðarfæri eftir gögnum |
+| Drifbúnaður og vélahlutir; geymsla; rekstrarvörur; garður; leikföng | Varðveittir aðskildir yfirflokkar |
+
+Byggingarefni hefur Timbur (burðarvirki, gagnvarið, timburklæðningar, pallaefni, límtré, LVL, listar), Plötuefni (krossviður, OSB, MDF, gifs, spónaplötur), Einangrun, Þakefni, aðrar klæðningar, Hurðir og glugga, Steypu og múrvörur. Timburklæðningar eru aðeins undir Timbri. Stál og málmar og Eldisbúnaður hafa einnig eigin greinar; almenn net eru ekki sjálfkrafa flokkuð sem eldisnet.
+
+Stærð, efni/viðartegund, styrkleikaflokkur, yfirborðsmeðhöndlun og staðall eru aðskilin frá flokkun. Leit og síur styðja þau, auk framleiðanda, birgis og sölueiningar. Fyrir timbur/plötur eru aðeins tekin mál með skýrum einingum eða merktum tæknigögnum. `45x95 mm` er túlkað sem þykkt × breidd, `45x95x4200 mm` sem þykkt × breidd × lengd, og sú túlkun er sýnd við reitinn. Ómerkt `45x95` gefur engin staðfest mál. Árekstur milli gilda skilur reit eftir óþekktan og merkir til yfirferðar. Lengd í metrum eða cm má normalísera í mm vegna skýrrar einingar; það er ekki umreikningur sölueininga eða verðgrunns.
+
+Vöruheiti, upphaf lýsingar, birgjaflokkar og merkt JSON-LD `additionalProperty` tæknigögn styðja flokkun/eiginleika. Tæki, skrúfur eða sagarblöð sem nefna timbur/gifs/MDF sem notkunarefni fara ekki sjálfkrafa í byggingarefni. Gagnablöð eru áfram tengd á vöruspjaldi; PDF-innihald er ekki lesið sjálfvirkt. Ný birgjagögn sjást við enduropnun spjalds/endurhleðslu.
+
+Á vöruspjaldi má velja öll þrjú flokkunarþrep, leiðrétta eiginleika og bæta leitartögum. Ein aðalflokkun, mörg leitartög. Handvirk gildi eru vistuð í nýrri SQLite-töflu `product_enrichment` og yfirskrifast ekki við innlestur birgja. Eldri handvirkar flokkunarbreytingar varðveitast og eru samræmdar þegar hægt er; óþekktur eldri sérflokkur er merktur til yfirferðar. „Fjarlægja þessar handvirku breytingar“ endurheimtir fyrirliggjandi birgjagögn/eldri flokkun. Flokkunaróvissa og vöntun eiginleika eru aðskildar síur.
+
+Sama vara miðast við GTIN, framleiðanda + framleiðandanúmer eða birgi + vörunúmer. Sambærileg lýsing er aðeins möguleg staðganga. Timbur-/plötustaðgöngur þurfa sömu vörutegund og skráða þykkt/breidd; þekktir eiginleikar mega ekki stangast á. Það staðfestir ekki útskiptanleika og vantar hugsanlega lengd, styrk, meðhöndlun eða staðla. Vöruspjaldið sýnir birgi, birgjanúmer, MPN, verðgrunn, einingu, VSK, pakkastærð og tengil. Engin umreikningur milli stk., m, m² og kg án staðfestra gagna.
+
+Bæta má vöru og magni beint á nýjan eða vistaðan BOM-lista. Skráðir eiginleikar fylgja sem kröfur. BOM úr CSV/XLSX getur líka borið valfrjálsu dálkana `thykkt_mm`, `breidd_mm`, `lengd_mm`, `styrkleikaflokkur`, `yfirbordsmedhondlun`, `efni`, `stadall`. Línur með ólíkar kröfur eru ekki sameinaðar. Sama auðkenni og mögulegar staðgöngur eru aðgreindar. Staðgöngur þarf að samþykkja; vantar verð, einingar eða áskilinn tæknieiginleika telst línan ekki fullverðlögð. Ófullkomin tilboð sýna þekju og hlutakostnað, ekki villandi heildarverð.
+
+AI-uppsetning úr v0.7 fylgir áfram, nú með samræmdum flokkunarstígum og tæknikröfum. Lykill fylgir ekki. Prófanir nota tilbúin tímabundin dæmi; þeim er ekki bætt í vörugrunninn. 67 Python-próf, Node-próf fyrir leit/flokkun/BOM og DOM-próf fyrir flokkunarslóðir, síur, vistun, AI-tillögur og vörur á BOM staðfest.
+
+### Það sem bíður gagna
+
+Flokkunartréð býr ekki sjálft til vöruúrval. Ef timbur, málmar eða aðrir flokkar eru tómir þarf staðfestar birgjafærslur. Verð eitt nægir ekki til samanburðar þegar eining, pakkastærð eða VSK er óþekkt. Óstaðfest gildi eru ekki fyllt sjálfvirkt. Engin full sjálfvirk yfirferð tæknilegs jafngildis, lagerstöðu eða afhendingar hefur verið gerð. Yfirlit yfir umfang gagna í einkapakkanum fylgir í `GAGNASTADA.txt`; einkagögnin eru ekki í GitHub.

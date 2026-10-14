@@ -10,9 +10,14 @@ function identify(line,o){
  if(line.sku)return canonical(line.sku)===canonical(o.sku);
  return S.matches(o,line.name);
 }
-function exact(line,o){return !!(line.gtin&&o.gtin||line.brand&&line.manufacturer_part&&o.brand&&o.manufacturer_part||line.supplier&&line.sku);}
+function exact(line,o){return identify(line,o)&&!!(line.gtin&&o.gtin||line.brand&&line.manufacturer_part&&o.brand&&o.manufacturer_part||line.supplier&&line.sku);}
 function cost(line,o,currency,today){
  let reason='';
+ for(const [k,v] of Object.entries(line.specifications||{})){
+  if(o.specifications?.[k]==null)return {eligible:false,reason:'Tæknilegan eiginleika vantar: '+({thickness_mm:'þykkt',width_mm:'breidd',length_mm:'lengd',strength_class:'styrkleikaflokkur',treatment:'meðhöndlun',material:'efni',standard:'staðall'}[k]||k)};
+  if(norm(o.specifications[k])!==norm(v))return {eligible:false,reason:'Tæknilegur eiginleiki passar ekki: '+({thickness_mm:'þykkt',width_mm:'breidd',length_mm:'lengd',strength_class:'styrkleikaflokkur',treatment:'meðhöndlun',material:'efni',standard:'staðall'}[k]||k)};
+ }
+
  if(o.currency!==currency)reason='Annar gjaldmiðill';
  else if(o.price==null||o.net_price==null)reason='Verð eða VSK vantar';
  else if(!Number.isFinite(o.pack_quantity)||o.pack_quantity<=0)reason='Pakkastærð óstaðfest';
@@ -27,7 +32,8 @@ function cost(line,o,currency,today){
 function quote(rows,offers,selections={},currency='ISK',today=Date.now()){
  const market=offers.filter(o=>o.source_kind!=='purchase'&&o.source_kind!=='reference');
  const lines=rows.map(line=>{
-  const candidates=market.filter(o=>identify(line,o)).map(o=>{
+  const reference=offers.find(o=>o.id===line.reference_offer_id);
+  const candidates=market.filter(o=>identify(line,o)||(reference&&S.comparable(reference,o))||(selections[line.line_id]||[]).includes(o.id)).map(o=>{
    const approved=Object.hasOwn(selections,line.line_id)?(selections[line.line_id]||[]).includes(o.id):exact(line,o);
    return {offer:o,approved,exact:exact(line,o),...cost(line,o,currency,today)};
   });

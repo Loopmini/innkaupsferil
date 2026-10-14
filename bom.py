@@ -2,8 +2,11 @@
 import csv,io,json,math,re,unicodedata,zipfile,posixpath
 import xml.etree.ElementTree as ET
 
-FIELDS=('name','quantity','unit','supplier','sku','gtin','brand','manufacturer_part')
+SPEC_FIELDS=('thickness_mm','width_mm','length_mm','strength_class','treatment','material','standard')
+FIELDS=('name','quantity','unit','supplier','sku','gtin','brand','manufacturer_part')+SPEC_FIELDS
 ALIASES={'name':['name','heiti','vara','lysing','vorulysing','description','item'],'quantity':['quantity','magn','qty'],'unit':['unit','eining','einingar'],'supplier':['supplier','birgir'],'sku':['sku','vorunumer','itemcode'],'gtin':['gtin','ean','strikamerki'],'brand':['brand','framleidandi'],'manufacturer_part':['manufacturerpart','framleidslunumer','mpn']}
+
+ALIASES.update({'thickness_mm':['thicknessmm','thykktmm'],'width_mm':['widthmm','breiddmm'],'length_mm':['lengthmm','lengdmm'],'strength_class':['strengthclass','styrkleikaflokkur'],'treatment':['treatment','yfirbordsmedhondlun'],'material':['material','efni'],'standard':['standard','stadall']})
 
 def norm(s):
  return re.sub('[^a-z0-9]','',unicodedata.normalize('NFKD',str(s).replace('ð','d').replace('Ð','D').replace('þ','th').replace('Þ','Th').replace('æ','ae').replace('Æ','Ae')).encode('ascii','ignore').decode().lower().replace('ð','d'))
@@ -79,5 +82,15 @@ def parse(content,filename='bom.csv'):
    if combined[key]['quantity']>1e9:raise ValueError('Samanlagt magn er of hátt.')
   else:combined[key]=r
  rows=list(combined.values())
- for i,r in enumerate(rows):r['line_id']=str(i+1)
+ for i,r in enumerate(rows):
+  r['line_id']=str(i+1);specs={}
+  for key in SPEC_FIELDS:
+   value=r.pop(key)
+   if not value:continue
+   if key.endswith('_mm'):
+    try:value=float(value.replace(',','.'))
+    except ValueError:raise ValueError('Mál í BOM þurfa tölur í mm.')
+    if not math.isfinite(value) or value<=0:raise ValueError('Mál í BOM þurfa jákvæðar tölur í mm.')
+   specs[key]=value
+  if specs:r['specifications']=specs
  return rows,sheet

@@ -1,0 +1,14 @@
+const assert=require('assert/strict'),S=require('../static/search.js'),B=require('../static/bom-core.js');
+const a={id:1,name:'Burðarvirkistimbur',supplier:'A',sku:'A1',source_kind:'market',gtin:'04006381333931',classification:{id:'building.timber.structural'},specifications:{thickness_mm:45,width_mm:95,strength_class:'C24'},unit:'m',pack_quantity:1,price:100,net_price:100,currency:'ISK',observed_at:new Date().toISOString()};
+const b={...a,id:2,supplier:'B',sku:'B2',gtin:'4006381333931',price:80,net_price:80};
+assert(S.same(a,b));assert(!S.same(a,{...b,gtin:'1111111111111'}));
+assert(S.comparable(a,{...b,gtin:'',specifications:{...a.specifications}}));
+assert(!S.comparable(a,{...b,specifications:{...a.specifications,strength_class:'C18'}}));
+assert(S.matches({...a,search_tags:['pallaverkefni']},'pallaverkefni'));
+const line={line_id:'1',name:'Burðarvirkistimbur',quantity:10,unit:'m',specifications:{strength_class:'C24'}};
+let q=B.quote([line],[a,b],{'1':[1,2]});assert.equal(q.subtotal,800);assert(q.complete);
+q=B.quote([line],[a,{...b,specifications:{strength_class:'C18'}}],{'1':[1,2]});assert.equal(q.subtotal,1000);assert(q.lines[0].candidates.some(c=>c.reason?.includes('passar ekki')));
+q=B.quote([line],[{...b,specifications:{}}],{'1':[2]});assert(!q.complete);assert.equal(q.covered,0);
+q=B.quote([line],[{...b,unit:'stk'}],{'1':[2]});assert(!q.complete);
+q=B.quote([line],[{...b,price:null,net_price:null}],{'1':[2]});assert(!q.complete);
+console.log('Taxonomy search/BOM passed: identifiers, tags, substitutes, requirements, missing data and incompatible units.');

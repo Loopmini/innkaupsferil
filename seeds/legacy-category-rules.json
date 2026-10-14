@@ -1,0 +1,94 @@
+[
+  [
+    "Leikföng og módel",
+    "leikfang|\\bmodel\\b|fotstign.*traktor"
+  ],
+  [
+    "Hreinlætistæki og baðbúnaður",
+    "badkar|badker|blondunartaek|handlaug|salerni|sturt|salernissk|vaskur|vaskar"
+  ],
+  [
+    "Stigar og vinnupallar",
+    "\\bstig[ai]r?\\b|troppur|vinnupall|vinnubord|vinnubukk"
+  ],
+  [
+    "Borar og snittvörur",
+    "\\b(?:stal|tre|jarn|malm|stein|mur|flisa|gler|demants|spada|dosa|threpa)?bor(?:ar|asett)?\\b|snittbakk|snittapp|snittapi|bora- og bitasett"
+  ],
+  [
+    "Skurðar- og slípivörur",
+    "sagarblad|sagarblod|multiblad|multiblod|skurdarsk|demantsblad|slipisk|slipibel|slipibond|slipipud|fraesit(?:enn|onn)|sandpapp|sds.*fleyg|bonsvamp|bonpud|ullarpud|slipiboll"
+  ],
+  [
+    "Handverkfæri og mælitæki",
+    "skrufjarn|skrufbit|skrufstykk|bitahald|bita hald|bitasett|bita sett|\\b(?:tong|tangir|hamar|hamrar|lykill|lyklasett|hnifur|hnifar|malband|hallamal|thvinga|thvingur|toppar|blyantur|tuss)\\b|maelit|maelib|maelar|laser|lyklar|skiptilykl|hex bit|handverkfaer|\\bhefill\\b|\\bsog\\b|\\bsagir\\b"
+  ],
+  [
+    "Vélar og rafmagnsverkfæri",
+    "butsog|butsagir|bordsog|bordsagir|ristisog|flisasog|hjolsog|hjolsagir|sledasog|sledasagir|steinsog|steinsagir|stingsog|stingsagir|bandsog|bandsagir|sverd[s]?og|sverdsagir|borvel|skrufvel|slipirokk|slipivel|soguvel|rafmagnsverkfaer|rafmagnsverkfaeri|fraesari|fraesarar|pussari|pussarar|heftibyss|pinnabyss|naglabyss|kittisgrind|\\bnagari\\b|jardvegsthjopp|jarnabindingavel|skurdarvel|thykktarhefil|kaffivel|vifta|viftur|mos[s]?unarvel|\\b(?:vel|velar)\\b"
+  ],
+  [
+    "Suðubúnaður og suðuvörur",
+    "suduv|sudub|suduth|sudutra|sudupist|sudubrenn|gasiq|\\blogsu"
+  ],
+  [
+    "Vinnufatnaður og öryggi",
+    "hansk|vettling|hjalm|heyrnar|oryggis|vinnufat|vinnusk|stigvel|jakk|buxur|samfest|kuldagall|fatnad|hufur|hufa|\\bbelti\\b|bjorgunar|fallvarn|peys|skyrt|\\bbolir\\b|ulpur|ulp[a-u]|andlits|ondunar|hlifd|augnhlif|su[ðd]uskerm"
+  ],
+  [
+    "Þéttingar og pakkningar",
+    "thettisett|thettihring|pakkdos|o-hring|\\boring\\b|flatpakkning"
+  ],
+  [
+    "Slöngur, barkar og tengi",
+    "slanga|slong|barki|barkar|fitting|hradtengi|samtengi|tengistykki|nippl|hosur|slonguhjol|glussatengi"
+  ],
+  [
+    "Lokar og lagnaefni",
+    "\\bloki\\b|\\blokar\\b|kululok|pipulagn|lagnaefni|\\bror\\b|\\bflans|gufugildr"
+  ],
+  [
+    "Drifbúnaður, dælur og legur",
+    "\\blega\\b|\\blegur\\b|kulegur|drifbun|dael[a-u]|thrystijafn|rakaglas|motor|tjakk|loftpress|girkass|drifreim"
+  ],
+  [
+    "Efnavörur og smurefni",
+    "\\b(?:lim|kitti|fuga|thettiefni|hreinsir|hreinsiefni|olia|oliur|smur|smurefni|smurfeiti|feiti|glussi|epoxy|silicon|silikon|leysir)\\b|rydhreinsi|rydloys"
+  ],
+  [
+    "Festingar og skrúfur",
+    "\\b(?:tre|stein|gifs|plat|spax)?skruf(?:a|ur|um|na|urnar)?\\b|skrufusett|bolti|boltar|\\bskinn(?:a|ur)\\b|snitttein|hnod|hosuklemm|splitti|\\bpinnar\\b|\\bhefti\\b|reknagl|naglar|kambsaum|festing"
+  ],
+  [
+    "Rafbúnaður og lýsing",
+    "rafbun|rafmagn|kapall|kaplar|streng|tofluvir|tengill|tenglar|\\brof[ai]r?\\b|lysing|ljos|rafhlod|fjoltengi|hledsl|rafstod|rafg\\.stod"
+  ],
+  [
+    "Geymsla og skipulag",
+    "taska|toskur|verkfaerakass|verkfaeratosk|geymslu|skuffusk|bakpoki|verkfaerahulst"
+  ],
+  [
+    "Rekstrarvörur og hreinlæti",
+    "hreinlaet|hreinsivor|pappir|thurrk|sapu|ruslaf|ruslap|plastpok|plast pok|umbud|skammtar|bursti|sopur|fotur|ryksug|hreinsibun"
+  ],
+  [
+    "Hífing, keðjur og veiðarfæri",
+    "stroff|lyftibun|hif|kedj|\\btalia\\b|kadal|veidarf|handfaer|bauj|\\btog\\b"
+  ],
+  [
+    "Véla- og kerruhlutir",
+    "kerruhlut|beisl|yfirtengi|drifsk(?:aft|oft)|beltagrof|vinnuvel|landbuna|traktor|drykkjarker|basmott"
+  ],
+  [
+    "Málning og yfirborð",
+    "malning|pensl|malningar.*kef|murbun|murvor"
+  ],
+  [
+    "Garður og útisvæði",
+    "skofl|hrifur|greinaklipp|fjolorf|slattu|snyrt|gardverkfaer|multi-star|girding|staurar|\\bhlid\\b|udakut|udarar"
+  ],
+  [
+    "Byggingarefni",
+    "timbur|steypu|einangr|byggingarefni|gips"
+  ]
+]

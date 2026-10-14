@@ -30,6 +30,7 @@ const rules=[
 ];
 const find=text=>rules.find(([,r])=>r.test(S.normalize(text)));
 function explain(o){
+ if(o.classification)return {category:o.classification.path[0],source:o.classification.source,evidence:o.classification.evidence};
  if(o.manual_category)return {category:o.manual_category,source:'Handvirkt val',evidence:o.manual_category};
  // A precise product noun beats a broad parent category and included accessories.
  const name=String(o.name||'').split(/\s+(?:fyrir|f\/|f\.|með|m\/|í tösku)\s*/i)[0];

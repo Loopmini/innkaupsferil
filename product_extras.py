@@ -49,7 +49,7 @@ def page_details(body,url):
             if tag=='a' and self.anchor is not None:self.links.append(self.anchor);self.anchor=None
             if tag=='script' and self.current is not None:self.scripts.append(self.current);self.current=None
     p=Parser();p.feed(body)
-    result={'image_url':page_image(body,url),'description':'','supplier_categories':[],'documents':[],'details_version':2}
+    result={'image_url':page_image(body,url),'description':'','supplier_categories':[],'documents':[],'technical_properties':[],'details_version':3}
     def walk(value):
         if isinstance(value,dict):
             yield value
@@ -73,6 +73,13 @@ def page_details(body,url):
             if 'Product' in kind and not product_seen:
                 product_seen=True
                 result['description']=text(item.get('description'))[:8000]
+                props=item.get('additionalProperty',[])
+                if isinstance(props,dict):props=[props]
+                if isinstance(props,list):
+                    for prop in props[:50]:
+                        if isinstance(prop,dict) and isinstance(prop.get('value'),(str,int,float)):
+                            result['technical_properties'].append({'name':text(prop.get('name'))[:120],
+                                'value':text(prop['value'])[:200],'unit':text(prop.get('unitText') or prop.get('unitCode'))[:30]})
                 imgs=item.get('image',[]);imgs=[imgs] if not isinstance(imgs,list) else imgs
                 for im in imgs:
                     src=im.get('contentUrl',im.get('url','')) if isinstance(im,dict) else im
