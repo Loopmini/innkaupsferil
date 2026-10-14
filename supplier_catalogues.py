@@ -80,7 +80,7 @@ def collect(key,supplier,client,previous,state,progress,budget=25):
    if r:records[r['key']]=r
   nxt='id="pagination--next"' in body
   return list(records.values()),dict(status='partial',scope='Vöruskrá í 20 færslu lotum; verð ekki innlesin',loaded=len(records),next_page=page+1 if nxt else 1,checked_at=now())
- if key in ('landvelar','dynjandi'):
+ if key in ('landvelar','dynjandi','tengi'):
   page=int(state.get('next_page',1))
   body,headers=client.get(client.origin+f'/wp-json/wc/store/v1/products?per_page=100&page={page}&orderby=id&order=asc')
   rows=json.loads(body)

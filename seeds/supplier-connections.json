@@ -118,8 +118,8 @@
       "key": "tengi",
       "supplier": "Tengi",
       "url": "https://www.tengi.is/",
-      "finding": "Lagnaefni, fittings og ryðfríir lokar í opinberri vöruskrá. Vörutenging ekki enn útfærð.",
-      "next_step": "Kanna vöruskrárútflutning og verðgrundvöll; efnisflokkur og stærðir verða að passa við BOM."
+      "finding": "Lagnaefni, fittings, ryðfríir lokar og hreinlætistæki. Opinbert vöruviðmót skilar vörum og birtum verðum.",
+      "next_step": "Tengt í 100 færslu lotum. VSK, afbrigði og pakkningar þarf að staðfesta; fyrsta lota er ekki full þekja lagnaefnis."
     },
     {
       "key": "tandur",

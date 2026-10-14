@@ -145,11 +145,11 @@ Prófanir: `python -m unittest discover -s tests`, `node tests/search.test.js` o
 
 ## Fleiri vörur og birgjar – 14. október 2026
 
-Dynjandi er nú tengdur með opinberu Store API í 100 færslu lotum, sömu varfærnu verðtúlkun og Landvélar. Núllverð og verðbil verða ekki samanburðarverð. Keyra má `python market_sync.py --sources dynjandi` til að sækja næstu lotu. Sjálfgefin uppfærsla nær einnig til Dynjanda.
+Dynjandi og Tengi eru nú tengdir með opinberu Store API í 100 færslu lotum, sömu varfærnu verðtúlkun og Landvélar. Núllverð og verðbil verða ekki samanburðarverð. Keyra má `python market_sync.py --sources dynjandi` til að sækja næstu lotu. Sjálfgefin uppfærsla nær einnig til Dynjanda og Tengis.
 
 Birgjayfirlit sýnir nú líka kannaða birgja sem hafa engar vörur í grunni:
 - [Dynjandi](https://www.dynjandi.is/): öryggisbúnaður, persónuhlífar og iðnaðarvörur; tengdur.
-- [Tengi](https://www.tengi.is/): lagnaefni, fittings og ryðfríir lokar; vörutenging ólokið.
+- [Tengi](https://www.tengi.is/): lagnaefni, fittings og ryðfríir lokar og hreinlætistæki; tengdur, hlutaþekja.
 - [Tandur](https://www.tandur.is/): hreinlætisefni, þrifaáhöld og rekstrarvörur; opinber listaverð með VSK, vörutenging ólokið.
 - [Vélasalan](https://velasalan.is/): dælur, vélar og varahlutir fyrir sjó og iðnað; vörutenging ólokið.
 
