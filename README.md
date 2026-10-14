@@ -154,3 +154,10 @@ Birgjayfirlit sýnir nú líka kannaða birgja sem hafa engar vörur í grunni:
 - [Vélasalan](https://velasalan.is/): dælur, vélar og varahlutir fyrir sjó og iðnað; vörutenging ólokið.
 
 Þetta eru mögulegir viðbótarbirgjar, ekki staðfest tæknileg jafngildi eða tæmandi markaðsyfirlit. Skoða þarf efnisgæði, mál, vottanir og pakkningar áður en vörur eru samþykktar í BOM.
+
+
+## Vörumyndir og handvirk flokkun
+
+Vöruspjaldið sýnir mynd frá birgja þegar myndaslóð fylgir vöruviðmóti eða opinber vörusíða birtir myndalýsigögn. Fyrir eldri færslur er mynd sótt þegar spjaldið er opnað. Engin mynd er giskuð út frá heiti eða óstaðfestum flokkatengli. Myndaleysi eða aðgangshöfnun birtist í spjaldinu; mynd getur táknað vörufjölskyldu, svo staðfesta þarf afbrigði. Myndir eru hlaðnar frá birgja með referrerpolicy=no-referrer.
+
+Í „Skoða“ → „Breyta flokkun“ má velja eða skrifa flokk, einnig fyrir óflokkaðar vörur. Flokkurinn gildir fyrir þessa vörufærslu, fer fram yfir sjálfvirka flokkun og vistast í data/catalog.sqlite. Upprunaleg birgjaflokkun er varðveitt. „Nota sjálfvirka flokkun“ eyðir eigin leiðréttingu. Verð og vörunúmer eru ekki breytt með þessari aðgerð. Varðveittu data/catalog.sqlite við uppfærslu uppsetningar.

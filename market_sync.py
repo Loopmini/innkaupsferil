@@ -118,6 +118,8 @@ def parse_thor(p):
  pack(r,r['name'])
  r['availability']='Til samkvæmt birgjaviðmóti' if p.get('is_in_stock') else 'Ekki á lager samkvæmt birgjaviðmóti'
  r['note']='Opinbert Store API. Verð nær til sölueiningar; pakkastærð og VSK eru ekki áætluð. '+('Afbrigðisvara; grunnverð ekki notað sem verð afbrigðis.' if p.get('type')=='variable' else '')
+ from product_extras import image_url
+ r['image_url']=next((u for img in p.get('images',[]) if isinstance(img,dict) and (u:=image_url(img.get('src','')))), '')
  r['product_type']=p.get('type','')
  return r
 
@@ -133,6 +135,8 @@ def parse_husa(body,url):
  if price:
   value=float(price[1].replace('.','').replace(',','.'))
   if value>0:r.update(price=value,vat_included=True,price_status='Birt vefverð með VSK; skatthlutfall óstaðfest')
+ from product_extras import page_image
+ r['image_url']=page_image(body,url)
  pack(r,name)
  r['availability']='Ekki til á vef samkvæmt birgi' if 'Ekki til á vef' in plain(region) else 'Lagerstaða þarf staðfestingu hjá birgi'
  r['note']='Vörusíða lesin sjálfvirkt. VSK innifalinn samkvæmt söluskilmálum; skatthlutfall og magn einingar eru ekki áætluð.'

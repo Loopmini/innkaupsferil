@@ -1,0 +1,30 @@
+import unittest,tempfile,json
+from pathlib import Path
+from unittest.mock import patch
+import app
+from product_extras import image_url,page_image
+from market_sync import parse_thor
+
+class ExtrasTest(unittest.TestCase):
+ def test_images_and_unsafe_urls(self):
+  self.assertEqual(page_image('<meta content="/p.jpg?a=1&amp;b=2" property="og:image">','https://supplier.is/product'),'https://supplier.is/p.jpg?a=1&b=2')
+  for u in ['javascript:alert(1)','http://site.is/p.jpg','https://127.0.0.1/x','https://user:pass@site.is/x']:
+   self.assertEqual(image_url(u),'')
+  r=parse_thor(dict(id=1,name='Vara',permalink='https://thor.is/p',images=[{'src':'https://thor.is/p.jpg'}]))
+  self.assertEqual(r['image_url'],'https://thor.is/p.jpg')
+ def test_override_survives_source_refresh_and_reset(self):
+  with tempfile.TemporaryDirectory() as td,patch.object(app,'DB',Path(td)/'test.sqlite'):
+   row={'id':-100,'name':'Óþekkt vara','category':'Óflokkað','price':None}
+   with patch.object(app,'read_supplements',return_value=([dict(row)],{})):
+    app.save_classification(-100,'Lokar og lagnaefni')
+   row['category']='Nýr birgjaflokkur'
+   with patch.object(app,'read_supplements',return_value=([dict(row)],{})):
+    actual=app.catalogue()['offers'][0]
+    self.assertEqual(actual['manual_category'],'Lokar og lagnaefni')
+    self.assertEqual(actual['category'],'Nýr birgjaflokkur')
+    app.save_classification(-100,'')
+    self.assertEqual(app.catalogue()['offers'][0]['manual_category'],'')
+    with self.assertRaises(ValueError):app.save_classification(999,'Flokkur')
+ def test_invoice_links_are_not_fetched_as_product_images(self):
+  with tempfile.TemporaryDirectory() as td,patch.object(app,'DB',Path(td)/'test.sqlite'),patch.object(app,'read_supplements',return_value=([{'id':-5,'source_kind':'purchase','url':'https://thor.is/category'}],{})),patch('market_sync.Client') as client:
+   self.assertEqual(app.supplier_image(-5),'');client.assert_not_called()
