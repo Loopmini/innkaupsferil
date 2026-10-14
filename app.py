@@ -245,7 +245,7 @@ def start_sync_locked(mode='batch',selected=None):
                 if mode=='full':
                     from full_sync import full_pass
                     full_pass(ROOT,SYNC_STOP,selected)
-                else:run(root=ROOT,selected=selected)
+                else:run(root=ROOT,selected=selected,index_only=mode=='index')
             except Exception as error:
                 print('Market refresh failed:', error, flush=True)
         data_safety.create(ROOT,DB,'before_supplier_sync')
@@ -451,7 +451,7 @@ class Handler(BaseHTTPRequestHandler):
                     details.update({k:offer[k] for k in ('classification','specifications','specification_evidence','specification_conflicts','missing_specifications','search_tags','product_enrichment')})
                 return self.send(details)
             if self.path == '/api/refresh-market':
-                return self.send({'started': start_sync('full' if data.get('mode')=='full' else 'batch',data.get('sources'))})
+                return self.send({'started': start_sync(data.get('mode') if data.get('mode') in ('full','index') else 'batch',data.get('sources'))})
             if self.path == '/api/stop-sync':
                 SYNC_STOP.set()
                 return self.send({'ok':True})

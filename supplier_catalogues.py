@@ -5,7 +5,7 @@ import re
 import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit, unquote, urljoin
 from urllib.error import HTTPError
-from market_sync import base, plain, now, parse_husa, parse_thor
+from market_sync import base, plain, now, parse_husa, parse_thor, inspect_index
 
 DIRECTORIES = {
  'rubix': ('/sitemap/1.xml', '/vorur/'),
@@ -101,6 +101,8 @@ def collect(key,supplier,client,previous,state,progress,budget=25):
  if key=='iskraft':urls=[u for u in urls if len(urlsplit(u).path.strip('/').split('/'))>=4]
  urls=list(dict.fromkeys(urls))
  if not urls:raise ValueError('Engar staðfestar vöruslóðir í síðukorti; sértenging þarf frekari útfærslu')
+ index=inspect_index(client,urls)
+ if getattr(client,'index_only',False) is True:return previous,{**state,'status':'partial','error':None,'loaded':len(previous),'index':index,'index_check':'Síðukort skoðað; verð og vörusíður ekki endurlesin'}
  cursor=int(state.get('cursor',0))%len(urls);checked=0;rejected=0;errors=[]
  for i in range(min(budget,len(urls))):
   url=urls[(cursor+i)%len(urls)]
@@ -113,6 +115,6 @@ def collect(key,supplier,client,previous,state,progress,budget=25):
    if e.code in (401,403,429):raise
    errors.append(dict(url=url,error=str(e)))
   checked+=1
-  progress(dict(stage=f'Vöruskrá {checked}/{budget}',loaded=len(records),expected=len(urls)))
+  progress(dict(stage=f'Vöruskrá {checked}/{min(budget,len(urls))}',loaded=len(records),expected=len(urls),work_done=checked,work_total=min(budget,len(urls)),scan_done=checked,scan_total=len(urls)))
  # Individual HTTP failures remain explicit; successful rows and the next cursor are retained.
- return list(records.values()),dict(status='partial',scope='Vöruskrá í lotum; afbrigði og lagerstaða óstaðfest. Verð aðeins þar sem nákvæmur aðalverðreitur er lesinn.',loaded=len(records),expected=len(urls),cursor=(cursor+checked)%len(urls),rejected_this_run=rejected,errors=errors,checked_at=now())
+ return list(records.values()),dict(status='partial',scope='Vöruskrá í lotum; afbrigði og lagerstaða óstaðfest. Verð aðeins þar sem nákvæmur aðalverðreitur er lesinn.',loaded=len(records),expected=len(urls),index=index,checked_this_run=checked,cursor=(cursor+checked)%len(urls),rejected_this_run=rejected,errors=errors,checked_at=now())

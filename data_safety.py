@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-FILES=('legacy-project.json','market-live.json','market-status.json','full-sync.json','market-history.sqlite')
+FILES=('market-index.json','legacy-project.json','market-live.json','market-status.json','full-sync.json','market-history.sqlite')
 
 def create(root,dbpath=None,reason='manual'):
     root=Path(root);data=root/'data';folder=data/'backups';folder.mkdir(parents=True,exist_ok=True)

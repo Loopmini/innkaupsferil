@@ -49,7 +49,7 @@ class LiveProgressTest(unittest.TestCase):
   from unittest.mock import patch
   import market_sync as m
   with tempfile.TemporaryDirectory() as td:
-   root=Path(td);release=threading.Event();observed=[];original=m.atomic
+   root=Path(td);release=threading.Event();slow_started=threading.Event();observed=[];original=m.atomic
    prior={'key':'old','supplier':'Þór hf.','name':'Bor','price':100,'currency':'ISK','availability':'unknown','observed_at':'2026-01-01'}
    original(root/'data/market-live.json',{'products':[prior],'meta':{}})
    def save(path,data):
@@ -57,10 +57,11 @@ class LiveProgressTest(unittest.TestCase):
     if path.name=='market-status.json' and data.get('runtime',{}).get('husa',{}).get('phase')=='ok' and data.get('runtime',{}).get('thor',{}).get('phase')=='running':
      observed.append(json.loads(path.read_text(encoding='utf-8')));release.set()
    def slow(client,previous,state,progress):
-    progress({'stage':'Síða 1/2','loaded':1,'expected':2})
+    progress({'stage':'Síða 1/2','loaded':1,'expected':2});slow_started.set()
     if not release.wait(3):raise ValueError('fast source progress never arrived')
     return [{**prior,'price':120}],{'status':'ok','loaded':1}
    def fast(*args):
+    if not slow_started.wait(3):raise ValueError('slow source never started')
     return [{'key':'new','supplier':'Húsasmiðjan','name':'Vara','price':50,'currency':'ISK','availability':'unknown','observed_at':'2026-01-01'}],{'status':'ok','loaded':1}
    with patch('market_sync.Client'),patch('market_sync.atomic',side_effect=save),patch('market_sync.thor',side_effect=slow),patch('market_sync.husa',side_effect=fast):
     r=m.run(root,selected=['thor','husa'])

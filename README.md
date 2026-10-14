@@ -311,3 +311,16 @@ Enginn sendingarhnappur eða tölvupóststenging er virk; notandi sækir skjali�
 81 Python-próf og 5 Node-prófasöfn: vistun/enduropnun í nýju ferli, endurtekinn innflutningur, örugg afturköllun, skemmd afrit, svör á sömu línu, pakkningar, MOQ, óþekkt gjöld, handvirkt val, afhending, flokkun og leit. DOM-próf ná yfir spjall/framvindu og leið frá innkaupadrögum yfir í vistaðan lista/birgjaval. Engin raunveruleg pöntun, sending eða API-kall var gert.
 
 Nýju eiginleikarnir fylla ekki upp vantaðar birgjaupplýsingar. Timbur/málmar og aðrir tómir flokkar bíða staðfestra vörufærslna. Pakkningar, VSK, flutningur, MOQ og afhending þurfa staðfestar heimildir áður en viðkomandi tilboð fær fulla heildartölu.
+
+
+## Innlestrartími og hraðskoðun úrvals · v0.11
+
+Undir Innlestrarvakt → Staða hvers birgis er nú tími liðinn í virkri lotu og áætlaður tími eftir í lotu, eftir að minnst þrjár mælingareiningar hafa lokið. Fyrir síðukort í heildarlestri er einnig gróf áætlun fyrir birginn miðað við fjölda slóða og hraða. Hún útilokar bið eftir öðrum birgjum og er ekki afhendingarloforð. Við langt hlé er áætlunin merkt óviss; fyrir bið, lokaðan aðgang eða óþekkta heild birtist engin tilbúin niðurtalning. Smáar API-lotur geta klárast áður en nægar mælingar fást. Staðan endurnýjast á þriggja sekúndna fresti.
+
+Hnappurinn **Hraðskoða breytingar á úrvali** sækir aðeins síðukort fyrir Húsasmiðjuna, Rúbix, Ísfell, Barka og Würth. Hann ber saman heilar slóðaskrár og sýnir fjölda nýrra slóða og slóða sem vantar frá fyrri mælingu. Fyrsta skoðun býr til viðmið. Engin vörusíða er sótt í þessum ham og verð endurnýjast ekki. Aðrir birgjar eru merktir sem óstuddir í hraðskoðun og ekki kallaðir á netinu. Ískraft-tengingin er því áfram ófullgerð.
+
+Slóð sem vantar er ekki sönnun þess að vara sé hætt: síða getur hafa verið færð eða síðukort breyst. Vöruspjöldum er ekki eytt við hraðskoðun. Tómt eða gallað síðukort varðveitir fyrri viðmiðun. Viðmiðin eru geymd í data/market-index.json, fylgja afritum og eru ekki sett á GitHub. Venjulegur síðukortainnlestur uppfærir sömu viðmið; mismunurinn miðast við síðustu vel heppnuðu skoðun, ekki heila dags-/árssögu.
+
+Fljótari staðfest leið að verðbreytingum væri opinbert vöru-API eða verðskrá frá birgi. Síðukort getur fljótt sýnt breytingu á slóðum en segir eitt og sér ekki hvort verð, lager eða tæknilýsing hafi breyst. Aðgangstakmarkanir og biðreglur birgja eru áfram virtar.
+
+Windows WinError 32 viðgerðin fylgir. Prófanir bæta við samanburði slóðaskráa án vörusíðukalla, varðveislu gagna við horfnar slóðir/tómt síðukort, óstuddum birgjum og tímamati við litlar mælingar, aðgangshöfnun og stöðnun.

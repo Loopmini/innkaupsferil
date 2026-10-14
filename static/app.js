@@ -154,3 +154,5 @@ $('import-form').onsubmit=async e=>{e.preventDefault();$('import-submit').disabl
 $('project-form').onsubmit=e=>{e.preventDefault();run(async()=>{await api('projects',{name:$('project-name').value});$('project-dialog').close();$('project-name').value='';await refresh();});};
 $('add-form').onsubmit=e=>{e.preventDefault();run(async()=>{const pid=Number($('add-project').value),oid=Number($('add-offer').value),existing=state.items.find(i=>i.project_id===pid&&i.offer_id===oid);await api('items',{project_id:pid,offer_id:oid,quantity:Number($('add-quantity').value)+(existing?.quantity||0)});$('add-dialog').close();await refresh();$('status').textContent='Vara komin á innkaupalista.';});};
 run(refresh);
+
+$('index-refresh').onclick=()=>run(async()=>{const result=await api('refresh-market',{mode:'index',sources:selectedSources()});if(!result.started){$('status').textContent='Önnur uppfærsla er þegar í gangi.';return;}$('status').textContent='Hraðskoðun síðukorta hafin. Skoðar slóðafjölda og breytingar; endurnýjar ekki verð.';renderSync(await api('sync-status'));});
