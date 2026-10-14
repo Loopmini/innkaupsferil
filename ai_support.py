@@ -153,7 +153,7 @@ CHAT_PLAN = object_schema({'queries': STRINGS})
 CHAT_REPLY = object_schema({'answer': STRING, 'questions': STRINGS, 'products': {'type':'array','items':object_schema({'id':{'type':'integer'},'reason':STRING})}})
 
 
-def chat(message, history, offers):
+def chat(message, history, offers, context=None, preferred=None):
     """Two bounded calls: formulate search terms, then explain real catalogue matches."""
     import taxonomy
     message=text(message,2000).strip()
@@ -166,7 +166,7 @@ def chat(message, history, offers):
     plan=ask('Búðu til 1–5 stutt leitarorðasambönd fyrir vörugrunn. Notaðu íslensk vöruheiti og samheiti; '
              'varðveittu stærðir/efni sem notandi biður um. Notaðu fyrra spjall til að skilja framhaldsspurningu. '
              'Ekki setja magn pöntunar í leitarorð. Ef beiðnin er óljós má queries vera tómt.',
-             {'history':conversation,'message':message},CHAT_PLAN)
+             {'history':conversation,'message':message,'active_context':context or {}},CHAT_PLAN)
     if not isinstance(plan,dict) or not isinstance(plan.get('queries'),list) or len(plan['queries'])>5:raise ValueError('Ógild leitartillaga frá AI.')
     queries=[text(q,120) for q in plan['queries']]
     def normalize(v):return re.sub(r'(\d)\s+mm\b',r'\1mm',taxonomy.norm(v))
@@ -185,7 +185,10 @@ def chat(message, history, offers):
             if all(hits):best=max(best,sum(hits)/len(hits))
         if best:scores.append((best,o))
     scores.sort(key=lambda x:(-x[0],str(x[1].get('name','')),x[1]['id']))
-    candidates=[o for _,o in scores[:40]]
+    ranked=[o for o in offers if o['id'] in (preferred or []) and o.get('source_kind') not in ('purchase','reference','quote')]+[o for _,o in scores]
+    candidates=[];candidate_ids=set()
+    for o in ranked:
+        if o['id'] not in candidate_ids and len(candidates)<40:candidates.append(o);candidate_ids.add(o['id'])
     result=ask('Svaraðu sem hjálpsamur innkaupaaðstoðarmaður. Útskýrðu hvað fannst, spurðu um óljósar kröfur '
                'og veldu að hámarki átta vörur úr candidates. Veldu aðeins vörur sem gætu uppfyllt beiðnina. '
                'Verð birtist sérstaklega úr gagnagrunni: aldrei nefna töluleg verð eða fullyrða ódýrast í svarinu. '
@@ -193,7 +196,7 @@ def chat(message, history, offers):
                'Ef ekkert passar, segðu að það vanti gögn og spurðu gagnlegrar spurningar. '
                'Þú mátt ekki panta, vista breytingar eða staðfesta tæknilegt jafngildi.',
                {'history':conversation,'message':message,'queries':queries,'candidate_count':len(scores),
-                'candidates':[product(o) for o in candidates]},CHAT_REPLY)
+                'candidates':[product(o) for o in candidates],'active_context':context or {}},CHAT_REPLY)
     if not isinstance(result,dict) or not isinstance(result.get('products'),list) or len(result['products'])>8:raise ValueError('Ógilt spjallsvar.')
     known={o['id'] for o in candidates};seen=set();products=[]
     for p in result['products']:

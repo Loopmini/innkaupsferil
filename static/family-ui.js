@@ -1,22 +1,23 @@
 'use strict';
 let selectedFamilyId='',familyQuery='';
-const numericSpec=k=>k.endsWith('_mm')||['head_weight_g','weight_g','voltage_v','current_a','power_w'].includes(k);
+const numericSpec=k=>k.endsWith('_mm')||k.endsWith('_deg')||['head_weight_g','weight_g','voltage_v','current_a','power_w'].includes(k);
 function familySpecKeys(id){
  const config=state.metadata?.taxonomy?.comparison_fields||{};
  const keys=Object.keys(config).filter(k=>id===k||id.startsWith(k+'.')||k.startsWith(id+'.'));
- return [...new Set(keys.flatMap(k=>config[k]).concat(['material','standard']))];
+ const longest=keys.filter(k=>!keys.some(other=>other!==k&&other.startsWith(k+'.')));
+ return [...new Set(longest.flatMap(k=>config[k]).concat(['material','standard']))];
 }
 function familyPriceText(offers){
  const ranges=ProductFamilies.priceGroups(offers);
  if(!ranges.length)return '<p class="muted">Samanburðarhæft verð vantar eða er úrelt.</p>';
- return ranges.map(r=>`<p><b>${money(r.min,r.currency)}${r.max!==r.min?' – '+money(r.max,r.currency):''} / ${esc(r.unit)}</b> án VSK<small>${esc(r.scope)} · ${r.items.length} verðfærslur með staðfestan grunn</small></p>`).join('')+'<small>Verðbil lýsir úrvali; vörur eru ekki sjálfkrafa útskiptanlegar. Afslættir, lágmarksmagn og flutningur reiknast í BOM.</small>';
+ return ranges.map(r=>`<p><b>${money(r.min,r.currency)}${r.max!==r.min?' – '+money(r.max,r.currency):''} / ${esc(r.unit)}</b> án VSK<small>${esc(r.scope)} · ${r.items.length} verðfærslur með staðfestan grunn</small></p>`).join('');
 }
 function variantSpecs(o){
  return familySpecKeys(o.classification?.id||'').map(k=>`<span><b>${esc(specLabels[k]||k)}:</b> ${esc(o.specifications?.[k]??'Óskráð')}</span>`).join(' · ');
 }
 function variantCard(g){
  const o=g.representative;
- return `<article class="card product-card">${o.image_url?`<img src="${esc(o.image_url)}" alt="${esc(o.name)}" loading="lazy" referrerpolicy="no-referrer">`:'<p class="muted">Mynd ekki tiltæk</p>'}<h3>${esc(o.name)}</h3><p>${esc(o.brand||'Framleiðandi óskráður')} · MPN ${esc(o.manufacturer_part||'Óskráð')} · EAN ${esc(o.gtin||'Óskráð')}</p><p>${variantSpecs(o)}</p><p>${esc((o.description||'Lýsing óskráð').slice(0,240))}</p><p>${new Set(g.offers.map(x=>x.supplier)).size} birgjar · ${g.offers.length} birgjafærslur</p><p>${g.offers.map(x=>esc(x.supplier)+' · '+esc(x.sku||'Vörunúmer óskráð')).join('<br>')}</p>${familyPriceText(g.offers)}<p><button data-detail="${o.id}">Skoða útfærslu og birgjatilboð</button></p><small>Veldu ákveðna vöru, birgja og magn á vöruspjaldinu.</small></article>`;
+ return `<article class="card product-card">${o.image_url?`<img src="${esc(o.image_url)}" alt="${esc(o.name)}" loading="lazy" referrerpolicy="no-referrer">`:'<div class="card-image">Mynd ekki tiltæk</div>'}<h3>${esc(o.name)}</h3><p>${esc(o.brand||'Framleiðandi óskráður')} · MPN ${esc(o.manufacturer_part||'Óskráð')} · EAN ${esc(o.gtin||'Óskráð')}</p><p>${variantSpecs(o)}</p><p>${esc((o.description||'Lýsing óskráð').slice(0,240))}</p><p>${new Set(g.offers.map(x=>x.supplier)).size} birgjar · ${g.offers.length} birgjafærslur</p><p>${g.offers.map(x=>esc(x.supplier)+' · '+esc(x.sku||'Vörunúmer óskráð')).join('<br>')}</p>${familyPriceText(g.offers)}<p><button data-detail="${o.id}">Skoða útfærslu og birgjatilboð</button></p><small>Veldu ákveðna vöru, birgja og magn á vöruspjaldinu.</small></article>`;
 }
 function renderFamilyResults(filtered){
  const q=$('search').value.trim();if(q!==familyQuery){selectedFamilyId='';familyQuery=q;}
@@ -38,7 +39,7 @@ function renderFamilyResults(filtered){
   html+='<div class="cards product-cards">'+fs.map(f=>{
    const leaf=taxLeaves().find(l=>l.id===f.id),photo=f.offers.find(o=>o.image_url);
    const fields=familySpecKeys(f.id).filter(k=>f.offers.some(o=>o.specifications?.[k]!=null));
-   return `<article class="card product-card">${photo?`<img src="${esc(photo.image_url)}" alt="Dæmi: ${esc(photo.name)}" loading="lazy" referrerpolicy="no-referrer"><small>Dæmismynd úr úrvali · ${esc(photo.supplier)}</small>`:'<p class="muted">Mynd ekki tiltæk</p>'}<h3>${esc(f.path.at(-1))}</h3><p class="muted">${f.path.slice(0,-1).map(esc).join(' → ')}</p><p>${esc(leaf?.description||'Úrval í þessari vörutegund. Skoðaðu eiginleika hverrar útfærslu og staðfestu að hún henti verkinu.')}</p>${f.review?'<span class="pill warn">Vörutegund óviss · þarf yfirferð</span>':''}<p><b>${f.products.length} vörur/útfærslur</b> · ${f.suppliers.length} birgjar · ${f.offers.length} birgjafærslur</p>${familyPriceText(f.offers)}<p>Síur með skráðum gögnum: ${fields.map(k=>esc(specLabels[k]||k)).join(', ')||'Tæknigögn vantar'}. Framleiðandi er sérstök sía.</p><button data-family="${esc(f.id)}">Skoða allt úrvalið</button></article>`;
+   return `<article class="card product-card">${photo?`<img src="${esc(photo.image_url)}" alt="Dæmi: ${esc(photo.name)}" loading="lazy" referrerpolicy="no-referrer"><small>Dæmismynd úr úrvali · ${esc(photo.supplier)}</small>`:'<div class="card-image">Mynd ekki tiltæk</div>'}<h3>${esc(f.path.at(-1))}</h3><p>${esc(leaf?.description||'')}</p>${f.review?'<span class="pill warn">Vörutegund óviss · þarf yfirferð</span>':''}<p><b>${f.products.length} vörur/útfærslur</b> · ${f.suppliers.length} birgjar</p>${familyPriceText(f.offers)}<button data-family="${esc(f.id)}">Skoða allt úrvalið</button></article>`;
   }).join('')+'</div>';
  }
  if(!fs.length)html+='<p>Engar vörur passa við valdar síur.</p>';

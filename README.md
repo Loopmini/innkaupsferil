@@ -5,7 +5,7 @@ Leitanlegur vörugrunnur og verðsamanburður fyrir innkaup. Fyrsta keyranlega �
 ## Keyra
 
 ```sh
-git clone --branch feature/supplier-directories https://github.com/Loopmini/innkaupsferil.git
+git clone --branch feat/workspaces-v014 https://github.com/Loopmini/innkaupsferil.git
 cd innkaupsferil
 python app.py
 ```
@@ -357,3 +357,45 @@ BOM tekur áfram ákveðna vörufærslu, birgja og magn. Ekki er hægt að panta
 **Yfirferð alls vörusafns** sýnir aðskildar talningar á fjölskyldum, vörum/útfærslum og birgjafærslum, einnig eftir birgja. Yfirferðarlisti hefur ástæður og beinan aðgang að viðkomandi færslu; allar athugasemdir má sækja sem CSV. Nýjar skrár fylgja sömu reglum. Innlestrarvakt birtir þessar þrjár talningar úr síðast hlöðnum grunni aðskildar frá vefslóðafjölda. Breytt framsetning er því ekki túlkuð sem brottfall vara úr síðukorti. Talning aðskildra vara er ekki sönnun þess að allar séu ólíkar: gögn sem vantar sameiginleg auðkenni geta enn falið tvítekningar.
 
 Prófanir ná yfir þrepin fjölskylda/útfærsla/tilboð, ólíka birgja með sama SKU, EAN-vartölu, árekstra í stærð/þyngd/ljósmagni, afturkræfa aðgreiningu, verðgrunn, talningar, sértækar hamragerðir og að fylgihlutir flokkist ekki sem hamrar. Allt fyrirliggjandi einkasafn var keyrt í gegnum reglurnar og viðmótspróf. Þetta er rekjanleg vélræn yfirferð, ekki tæknileg handstaðfesting hverrar vöru.
+
+## Samræmd vinnusvæði · v0.14
+
+Þessi útgáfa innleiðir fyrsta afhendingaráfanga samþykktrar viðmóts- og aðstoðartillögu. Gögn eru ekki flutt milli taflna eða eydd.
+
+- **Vörur:** leit efst, virkur innkaupalisti, smellanlegur flokkunarstígur, fleiri síur saman og spjalda-/töflusýn. Kerfisumsjón er undir Gagnaumsjón. Vörufjölskyldur og nákvæm útfærsla/tilboð halda fyrri auðkenna- og verðreglum.
+- **Vöruspjald:** lítil mynd og innkaupaaðgerð efst; Útfærslur og birgjar, Tæknigögn, Saga og heimildir. Breyta/yfirfara opnar eldri ritunarvirkni í sérstakri sýn. Heimildir, gagnablöð, afturkræf aðgreining og AI-tillögur haldast.
+- **Birgjar:** leit og tafla sjálfgefið, valfrjáls spjöld. Birgjaspjald hefur yfirlit, vörur, verðlista/gögn og uppfærslur. Vörur opna sameiginlega leit, innlestur opnar sama verðlistaferli með forvöldum birgi og uppfærsla velur núverandi tengingu. Ótengdur birgir fær skýr skilaboð.
+- **Gagnaumsjón:** skjöl, vefuppfærslur, gagnagæði, saga/afrit og stillingar. Verðlista-CSV hafnar ósamræmi milli birgis í skjali og forvals. Forskoðun leyfir val einstakra lína; óvaldar línur vistast sem óstaðfest drög og má opna aftur úr sögunni. Grunngögn eru endursannreynd við staðfestingu. Afturköllun nær aðeins til staðfestra lína.
+- **Innkaupalistar:** BOM og eldri verkefnalistar aðgengilegir á sama vinnusvæði. Eldri verkefnalistar halda pakkningamagni og auðkennum. Innkaupadrög má staðfesta á nýjan eða núverandi BOM-lista. Kröfur fyrri lína og listastillingar haldast. Óþekkt verðgrunnur eldri lista birtist ekki lengur sem núll.
+- **Njörður:** hliðarspjald með sýnilegu og breytanlegu samhengi. Valin vara eða fyrstu 40 línur valins BOM geta fylgt fyrirspurn. Vörunúmer eru sannreynd gagnvart gögnunum. BOM-lesari notar SQLite mode=ro, query_only og aðgerðatakmörkun; líkanið fær aðeins JSON, engin SQL-, skriftar- eða staðfestingarverkfæri. Engin lifandi API-köll eru gerð í prófunum. Fyrri API-lykill og stillingar haldast.
+
+Síðasta tilraun og síðasta árangursríka vörusöfnun eru nú skráð aðskilið frá þessari útgáfu. Eldri skrár sem vantar árangurstíma sýna Óskráð. Hraðskoðun síðukorts verður ekki merkt sem árangursrík verð-/vörusöfnun.
+
+### Prófað og enn ólokið
+
+98 Python-próf: m.a. valdar innflutningslínur, enduropnun biðlína, höfnun endurtekinnar staðfestingar, birgjamisræmi, afturköllun, viðbót á núverandi lista og lesaðgangsvörn. Node-prófasöfn fyrir vöruleit, fjölskyldur, flokkun, BOM, gjöld og tímamat. DOM-próf með fullu fyrirliggjandi safni nær yfir vinnusvæði, vöruflipa, opnun/lokun og enduropnun birgis, virkan lista og spjallsamhengi. Ekki prófað í raunverulegum Windows-vafra; sjónræn úttekt á mismunandi skjástærðum er enn eftir.
+
+Ekki telja alla spjallmennistillöguna afhenta í v0.14: PDF-/myndaútdráttur, frjáls greining skjala í spjalli, lesleit um öll söguleg gagnasöfn, aðgangshópar, sérstakt einangrað vinnslusvæði og varðveislutími draga bíða síðari áfanga. Skjalhnappar í spjalli opna núverandi sameiginlegt forskoðunarferli; spjallið flytur ekkert inn sjálft. Núverandi app er staðbundið fyrir einn eiganda og á ekki að kynna sem prófaða fjölnotendaþjónustu. Óstaðfest verðlistadrög eru enn geymd í núverandi import_batches-töflu, ekki nýju einangruðu skjalasafni. Ákvörðunarsaga geymir innflutningsauðkenni/heimild/tíma, en ekki auðkenndan fjölnotendasamþykkjanda.
+
+Eldri verkefnalistar og BOM eru varðveitt sér í gagnaskipan; þeir hafa sameiginlegan inngang en ekki fulla umbreytingu milli gerða. Samanburður/RFQ er fyrir BOM-lista. Engin sjálfvirk pöntun eða skilaboðasending. Vefuppfærslur halda núverandi samþykktri sjálfvirkni; forskoðun á hverri vefbreytingu er ekki ný virkni. Talning heildarlestrar telur enn breytingaatburði milli lota og er merkt sem slík; einstakar breyttar vörur yfir margar lotur eru ekki enn sér talning.
+
+Uppfærsla: stöðvaðu forritið, taktu afrit af núverandi forritsmöppu og afrit úr Gagnaumsjón. Afritaðu innihald Innkaupsferil-möppunnar úr uppfærslupakkanum yfir núverandi forrit. Pakkinn inniheldur hvorki data/ né .env. Keyrðu Starta-Windows.bat og ýttu á Ctrl+F5. Keyrðu ekki uppfærslupakkann sem nýja tóma uppsetningu.
+
+
+## Samskipti og vörutengsl · v0.15
+
+Viðbót við samþykkta v0.14-síðukortið og vinnusvæðin; sömu inngangar og engin eyðing eða sameining vörufærslna.
+
+- Fastur **Spyrja Njörð** hnappur; stillanleg breidd og stækkuð spjallsýn. Samtal og ósendur texti haldast við síðuskipti og lokun spjalls innan sömu vafralotu (ekki við endurhleðslu).
+- Enter sendir, Shift+Enter gerir línuskipti, IME-samsetning sendir ekki. Sendingarlás kemur í veg fyrir tvísendingu. Villur varðveita texta og sýna Reyna aftur. Stöðva svar hafnar síðbúnu svari; það tryggir ekki að þegar hafin API-vinnsla stöðvist eða verði ókeypis.
+- Viðhengishnappur og draga/sleppa: CSV-verðlistar eða Excel/CSV/TSV/TXT-innkaupalistar, mest 3 MB. Einföld hausgreining leggur til skjalategund; annars þarf val notanda. Skjölin fara í núverandi forskoðunarferli, ekki í frjálsa AI-skjalagreiningu. Engin staðfesting innflutnings fer fram úr spjalli. PDF og myndir eru enn óstudd.
+- Vöruniðurstöður opnast beint, svör má afrita og töflur afrita sem Excel-TSV með vörn gegn formúlutexta. Sjálfvirkt skrun er sleppt þegar notandi les ofar. Fókus fer aftur á opnunarhnapp eftir lokun; minni hreyfing studd. Viðbót í óvistuð innkaupadrög má afturkalla.
+- **Naglabyssur** og **Byssunaglar** eru vörutegundir innan núverandi flokkunar. Aðskilin notkunarsvið eru leitanleg, án breytingar á vöruflokki. Sértækir tæknireitir ná yfir lengdar-/þvermálsbil byssu, mál nagla, halla, samsetningu og hausgerð. Eiginleikarnir eru aðeins fylltir þegar gögn liggja fyrir.
+- Vöruspjald sýnir tengdar vörur og rekstrarvörur. Handvirk tengsl skrá nákvæm færsluauðkenni, tegund tengsla, heimild, athugasemd og sögu; þau sjást í báðar áttir. Staðfest samhæfi og skráð ósamhæfi krefjast heimildar og yfirferðar. Skráðir eiginleikaárekstrar hindra staðfest samhæfi naglabyssu/nagla.
+- Sjálfvirkar tillögur eru aðeins **Mögulega samhæft** þegar allir skilgreindir samanburðareiginleikar passa; annars **Tengt við notkun**, með ástæðum. Þær eru aldrei staðfestar. Mismunandi stærðir, pakkningar og birgjafærslur eru ekki sameinaðar. Handvirk tengsl berast ekki sjálfkrafa yfir á önnur tilboð í sömu fjölskyldu.
+- Breytt vörugögn setja vistuð tengsl í yfirferð; fyrra staðfesta samhæfið er þá birt sem óstaðfest notkunartengsl. Skráð ósamhæfi helst sýnilegt. Fyrri ákvörðun og heimild varðveitast. Endurvistun krefst nýjustu útgáfu tengslanna.
+- Samþykktir tæknieiginleikar halda forgangi við innlestur, en mótsagnir frá birgja fara í gagnagæðayfirferð. Nýjar flokkunarleiðréttingar geyma upprunasnapshot; ef breyttur uppruni bendir til annars flokks helst handvirka valið en fær yfirferðarmerkingu. Eldri leiðréttingar fá slíkan samanburðargrunn næst þegar þær eru yfirfarnar og vistaðar.
+
+**Prófanir:** 105 Python-próf og sjö eldri Node-prófasöfn. Nýtt endurkeyranlegt DOM-próf með tilbúnum prófunargögnum: `LINKEDOM_PATH=/slod/a/linkedom node tests/workspace.test.cjs` (linkedom er aðeins prófunartól, ekki keyrslukrafa). Sama próf var keyrt með fullu fyrirliggjandi safni. Prófað er meðal annars Enter/Shift/IME, tvísending, villa/endursending, varðveisla við lokun/síðuskipti, síðbúið svar eftir stöðvun, skrun við lestur, smellanleg niðurstaða og viðhengisforskoðun án staðfestingar. Bakendapróf staðfesta tvístefnutengsl, varanlega vistun, heimildarkröfur, breytt tæknigögn, mótsagnir og varðveislu flokkunar.
+
+**Ólokið:** Raunveruleg Windows-/sjónræn vafraprófun og lifandi AI-prófun. Engin samhæfispör hafa verið tæknilega staðfest fyrir notandann; það krefst framleiðandagagna. Sjálfvirkar samhæfisreglur fyrir bora/borbita, slípirokk/skífur og lagnir/tengi bíða; handvirka tengslalíkanið er sameiginlegt. PDF-/myndaútdráttur, aðgangshópar, einangrað dragnasafn og víðtæk leit í öllum sögugögnum eru áfram óloknir áfangar eins og lýst er fyrir v0.14. Enginn API-lykill var stofnaður eða settur í kóðann.

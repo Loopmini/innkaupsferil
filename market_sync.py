@@ -256,6 +256,9 @@ def run(root=ROOT,husa_limit=100,selected=None,index_only=False):
     added=sum(r['key'] not in previous for r in rows)
     changed=sum(r['key'] in previous and any(v!=previous[r['key']].get(k) for k,v in r.items() if k!='observed_at') for r in rows)
     with guard:
+     status['last_attempt_at']=status.get('checked_at',now())
+     status['last_success_at']=statuses.get(key,{}).get('last_success_at')
+     if not index_only and status.get('status') in ('ok','partial') and not status.get('errors'):status['last_success_at']=now()
      results[key]=rows;statuses[key]=status;completed.append(key)
      runtime[key].update(phase=status['status'],updated_at=now(),new_products=added,changed_products=changed,
                          loaded=status.get('loaded',len(rows)),stage='Lota lesin; bíður vistunar')

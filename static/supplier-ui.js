@@ -12,7 +12,7 @@ async function loadSupplierProfiles(){
  try{supplierProfiles=await api('supplier-profiles');$('supplier-cards').innerHTML=supplierProfiles.map((s,i)=>{
   const canonical=s.catalogue_name||s.name,rows=state.offers.filter(o=>o.supplier===canonical),c=state.metadata?.connections?.suppliers?.find(x=>x.supplier===canonical);
   return `<article class="card"><h3>${esc(s.name)}</h3><p>${[s.address,s.postal_code,s.city,s.country].filter(Boolean).map(esc).join(' · ')||'Heimilisfang óskráð'}</p><p>${s.registration_number?'Kt. '+esc(s.registration_number)+' · ':''}${esc(s.phone||'Sími óskráður')}<br>${esc(s.email||'Netfang óskráð')}</p><p>${rows.length} vörufærslur · ${(s.contacts||[]).length} tengiliðir</p>${s.website?`<p><a href="${esc(s.website)}" target="_blank" rel="noopener noreferrer">Vefur birgis ↗</a></p>`:''}${c?`<p class="muted">${esc(c.finding)}</p>`:''}<button data-edit-supplier="${i}">Upplýsingar og tengiliðir</button></article>`;
- }).join('');$('supplier-list-status').textContent='';}catch(e){$('supplier-list-status').textContent='Ekki tókst að lesa birgjaskrá: '+e.message;}finally{supplierLoading=false;}
+ }).join('');if(typeof supplierRows==='function')supplierRows();$('supplier-list-status').textContent='';}catch(e){$('supplier-list-status').textContent='Ekki tókst að lesa birgjaskrá: '+e.message;}finally{supplierLoading=false;}
 }
 function addSupplierContact(c={}){
  const row=document.createElement('fieldset');row.className='supplier-contact';
