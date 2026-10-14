@@ -4,11 +4,13 @@ import io
 import json
 import math
 import os
+import threading
+import time
 import sqlite3
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 from supplements import read_supplements
 
 ROOT = Path(__file__).parent
@@ -127,6 +129,40 @@ def catalogue():
     extra, metadata = read_supplements()
     return dict(offers=offers + extra, projects=projects, items=items, history=history, suppliers=SUPPLIERS, metadata=metadata)
 
+SYNC_THREAD = None
+SYNC_MUTEX = threading.Lock()
+
+def sync_status():
+    path = ROOT / 'data/market-status.json'
+    data = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'sources': {}}
+    from market_sync import is_running
+    data['running'] = bool(SYNC_THREAD and SYNC_THREAD.is_alive()) or is_running(ROOT / 'data/market-sync.lock')
+    return data
+
+def start_sync():
+    global SYNC_THREAD
+    with SYNC_MUTEX:
+        if sync_status()['running']:
+            return False
+        def worker():
+            try:
+                from market_sync import run
+                run(root=ROOT)
+            except Exception as error:
+                print('Market refresh failed:', error, flush=True)
+        SYNC_THREAD = threading.Thread(target=worker, daemon=True)
+        SYNC_THREAD.start()
+        return True
+
+def refresh_loop():
+    # Retry no more than daily; failed sources remain visible, no rapid retry loops.
+    while True:
+        status=sync_status()
+        stamp=status.get('finished_at') or status.get('started_at')
+        age=(datetime.now(timezone.utc)-datetime.fromisoformat(stamp)).total_seconds() if stamp else 86401
+        if age>=86400:start_sync()
+        time.sleep(60)
+
 class Handler(BaseHTTPRequestHandler):
     def send(self, data, status=200, content_type='application/json; charset=utf-8'):
         body = data if isinstance(data, bytes) else json.dumps(data, ensure_ascii=False).encode()
@@ -141,6 +177,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == '/api/market-history':
+            key=parse_qs(urlsplit(self.path).query).get('key',[''])[0]
+            dbpath=ROOT/'data/market-history.sqlite'
+            if not dbpath.exists():return self.send([])
+            with sqlite3.connect(dbpath) as db:
+                db.row_factory=sqlite3.Row
+                rows=[dict(r) for r in db.execute('SELECT observed_at,price,currency,availability FROM observations WHERE product_key=? ORDER BY id DESC LIMIT 30',(key,))]
+            return self.send(rows)
+        if path == '/api/sync-status':
+            return self.send(sync_status())
         if path == '/api/catalogue':
             return self.send(catalogue())
         if path == '/api/template':
@@ -165,6 +211,8 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError('Ógild beiðni.')
+            if self.path == '/api/refresh-market':
+                return self.send({'started': start_sync()})
             if self.path == '/api/import':
                 return self.send({'imported': import_csv(str(data.get('csv', '')))})
             with connect() as db:
@@ -196,6 +244,8 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     connect().close()
     print('Innkaupsferil: http://127.0.0.1:8000 (local access only)', flush=True)
+    if os.environ.get('INNKAUP_AUTO_REFRESH', '1') == '1':
+        threading.Thread(target=refresh_loop, daemon=True).start()
     server = ThreadingHTTPServer(('127.0.0.1', 8000), Handler)
     import sys
     if '--open' in sys.argv:

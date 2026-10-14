@@ -14,7 +14,10 @@ class SupplementsTest(unittest.TestCase):
    self.assertEqual(rows[0]['url'],'');self.assertEqual(len(rows[0]['lines']),1)
    self.assertEqual(read_supplements(root)[0][0]['id'],rows[0]['id'])
  def test_market_price_semantics(self):
-  rows,meta=read_supplements(Path(__file__).parents[1])
+  with tempfile.TemporaryDirectory() as directory:
+   root=Path(directory);(root/'seeds').mkdir()
+   (root/'seeds/public-market.json').write_bytes((Path(__file__).parents[1]/'seeds/public-market.json').read_bytes())
+   rows,meta=read_supplements(root)
   public=[r for r in rows if r['source_kind']=='market']
   self.assertEqual(len(public),6)
   thor=next(r for r in public if r['sku']=='MAP-60707-10')

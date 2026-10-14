@@ -23,7 +23,7 @@ Opnaðu **http://127.0.0.1:8000**. Á Windows má nota `py app.py`. Gagnagrunnur
 - Bein tenging á innlesna vöruslóð og merking verðheimilda eldri en 30 daga.
 - Birgjayfirlit sýnir þekju innlesinna gagna.
 
-Útgáfa 0.2 inniheldur lítið opinbert upphafsúrtak í `seeds/public-market.json`: sex 5 mm borafærslur, þar af þrjár með birtu verði. Þetta er ekki heildarskrá allra birgja. Upprunaslóð, athugunardagur, pakkastærð og staða verðs fylgja færslum. Verð vantar þar sem það náðist ekki; frá-verð fjölstærðavara er aldrei notað sem verð á 5 mm afbrigði. VSK-óstaðfest verð er sýnt sem birt pakkningarverð og útilokað frá nettósamanburði.
+Grunnurinn heldur litlu opinberu upphafsúrtaki frá útgáfu 0.2 í `seeds/public-market.json`: sex 5 mm borafærslur, þar af þrjár með birtu verði. Þetta er ekki heildarskrá allra birgja. Upprunaslóð, athugunardagur, pakkastærð og staða verðs fylgja færslum. Verð vantar þar sem það náðist ekki; frá-verð fjölstærðavara er aldrei notað sem verð á 5 mm afbrigði. VSK-óstaðfest verð er sýnt sem birt pakkningarverð og útilokað frá nettósamanburði.
 
 ### Gögn úr fyrra verkefni
 
@@ -65,7 +65,7 @@ python collect.py --supplier BYKO --urls data/product-urls.txt --output data/pri
 
 Slóðaskráin hefur eina HTTPS-vöruslóð í hverri línu (hámark 100). Tólið athugar robots.txt, virðir biðreglur og skilar villum ef gögn eru ekki aðgengileg. Engin innskráning eða framhjáhlaup aðgangstakmarkana. Athuga þarf notkunarskilmála birgis áður en það er notað reglulega. Villur vistast við hlið CSV í `.errors.json`.
 
-Úttakið er **drög til yfirferðar**, ekki staðfest verðlistagögn. VSK, eining, pakkastærð og flokkun eru skilin auð og verður að staðfesta þau áður en CSV er lesið inn. Tólið giskar ekki á upplýsingar og notar ekki `lowPrice` úr verðbili sem einstakt vöruverð. Sjálfvirk söfnun er ekki virk í vefviðmótinu og engin tímastýrð verðvakt hefur verið sett upp.
+Úttakið er **drög til yfirferðar**, ekki staðfest verðlistagögn. VSK, eining, pakkastærð og flokkun eru skilin auð og verður að staðfesta þau áður en CSV er lesið inn. Tólið giskar ekki á upplýsingar og notar ekki `lowPrice` úr verðbili sem einstakt vöruverð. Þetta eldra yfirferðartól er aðskilið frá nýju sjálfvirku tengingunum í market_sync.py, sjá útgáfu 0.3 neðar.
 
 ## Prófanir
 
@@ -79,6 +79,20 @@ node tests/search.test.js
 
 Þetta er staðbundið forrit fyrir einn notanda. Engin notendainnskráning eða fjölnotendaheimildir eru tilbúnar; þjónustan bindur aðeins á 127.0.0.1. Ekki opna hana beint á internetið. Opinbera GitHub-safnið á aðeins að innihalda kóða, aldrei reikninga, samningsverð eða gagnagrunn.
 
-Ekki hefur verið safnað öllum vörum/verðum allra birgja. Næstu verk eru staðfest tenging fyrir hvern birgjavef, sitemaps/API þar sem í boði, yfirferð staðgönguvara, tímasettar uppfærslur og auðkennd hýsing. Frakt, samningsafslættir, lágmarkspantanir og lagerstaða eru ekki í útreikningi. Innkaupalistar eru áætlanir byggðar á nýjustu innlesnu verðum, ekki verðtilboð eða pantanir.
+Ekki hefur verið safnað öllum vörum/verðum allra birgja. Næstu verk eru fleiri birgjatengingar, aukin þekja stórra síðukorta, yfirferð staðgönguvara og auðkennd hýsing. Frakt, samningsafslættir, lágmarkspantanir og lagerstaða eru ekki í útreikningi. Innkaupalistar eru áætlanir byggðar á nýjustu innlesnu verðum, ekki verðtilboð eða pantanir.
 
 Fyrri verkefnisgögn tengjast nú með staðbundnu JSON-úttaki. Það er afrit á tilteknum tíma, ekki lifandi tenging við ChatGPT eða Sites. Skipta má um `data/legacy-project.json` með nýrra úttaki sama sniðs þegar forritið er stöðvað. SQLite-innkaupalistar og innlesin verð varðveitast sérstaklega.
+
+## Útgáfa 0.3 – sjálfvirkar gagnatengingar
+
+`python market_sync.py` sækir Þór í öllum síðum opinbers WooCommerce Store API. Talan í birgjayfirliti sýnir hvort öll API-færslugögn náðust. Afbrigðavörur geta þurft stærðarval; lægsta verð þeirra er ekki notað sem verð hverrar stærðar. API-verð er leiðrétt eftir currency_minor_unit.
+
+Húsasmiðjan er lesin úr opinberu síðukorti í endurkeyranlegum lotum, 100 slóðir í hverri sjálfgefinni keyrslu. Borar eru fremst í fyrstu umferð. Í næstu keyrslum eru jafnframt endurskoðaðar allt að 50 elstu athuganir sem eru eldri en sólarhringur; ekki hvert verð daglega. `--husa-limit 500` stækkar lotuna. Bendill vistast í `data/market-status.json`. Síðukort telur slóðir, ekki staðfestar vörur. Flokkasíður án aðalvörunúmers eru ekki fluttar inn. Vörusíður án verðs haldast með óþekktu verði.
+
+BYKO, Sindri, Fossberg og Ísól eru prófuð en fá ekki tilbúna tengingu ef robots.txt, aðgangur eða sértækur vörulestur bregst. Aðrir birgjar eru enn ótengdir. Aðgangshöfnun 401/403 eða 429 er ekki sniðgengin. Engin innskráning eða leynilyklar eru notuð.
+
+Nýjar athuganir vistast í `data/market-live.json`, stöður í `data/market-status.json` og breytingasaga opinberra verðs/lagers í `data/market-history.sqlite`. Fyrri gögn eru varðveitt ef tenging mistekst. Stakar vörur sem hverfa úr heilli Þór-API-keyrslu falla út úr nýjasta listanum; eldri athuganir haldast í verðsögu. Handfærðar upphafsathuganir geta enn birst með eigin eldri dagsetningu. VSK og einingamagn eru áfram ekki giskuð; óstaðfest nettóverð er ekki notað í verðreiknuðum innkaupalistum.
+
+Appið uppfærir sjálfvirkt ef 24 klst. eru liðnar frá síðustu keyrslu og meðan Python-forritið keyrir. Þetta er ekki þjónusta sem keyrir áfram þegar tölvan eða forritið er slökkt. Slökkva má á sjálfvirkninni með `INNKAUP_AUTO_REFRESH=0`. Hnappurinn **Uppfæra markaðsverð** ræsir söfnun í bakgrunni. Í **Birgjar** sést árangur og takmarkanir hverrar tengingar. `Uppfaera-markad.bat` keyrir einnig uppfærslu án þess að opna vefappið.
+
+Opinberar tækniskýringar: https://developer.woocommerce.com/docs/apis/store-api/resources-endpoints/products/

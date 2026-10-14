@@ -20,11 +20,24 @@ def identifier(key):
 
 def read_supplements(root=ROOT):
     records, metadata = [], {}
-    public = root / 'seeds/public-market.json'
-    if public.exists():
-        payload = json.loads(public.read_text(encoding='utf-8'))
-        metadata['market'] = payload['meta']
-        for item in payload['products']:
+    combined = {}
+    for public in [root / 'seeds/public-market.json', root / 'data/market-live.json']:
+        if public.exists():
+            payload = json.loads(public.read_text(encoding='utf-8'))
+            metadata['market'] = payload['meta']
+            for item in payload['products']:
+                item['history_key'] = item['key']
+                key = (item['supplier'], item.get('sku') or item['url'])
+                prior = combined.get(key)
+                if prior:
+                    # Keep curated pack/tax metadata only for the same supplier SKU.
+                    for field in ('pack_quantity','unit','vat_included','vat_rate','attributes'):
+                        if item.get(field) in (None,'') and prior.get(field) not in (None,''):
+                            item[field] = prior[field]
+                    item['key'] = prior['key']
+                combined[key] = item
+    if combined:
+        for item in combined.values():
             r = dict(item)
             r.update(id=identifier('market:' + r['key']), source_kind='market', quantity=None,
                      gtin=r.get('gtin', ''), manufacturer_part=r.get('manufacturer_part', ''),
@@ -35,6 +48,8 @@ def read_supplements(root=ROOT):
                 if r.get('pack_quantity'):
                     r['unit_price'] = r['net_price'] / r['pack_quantity']
             records.append(r)
+    status_file=root / 'data/market-status.json'
+    if status_file.exists():metadata['sync']=json.loads(status_file.read_text(encoding='utf-8'))
     private = root / 'data/legacy-project.json'
     if private.exists():
         payload = json.loads(private.read_text(encoding='utf-8'))

@@ -6,7 +6,7 @@ const date = s => s ? new Date(s).toLocaleDateString('is-IS') : 'Dagsetning vant
 const stale = o => o.price !== null && Date.now() - Date.parse(o.observed_at) > 30*86400000;
 let pageLimit=60;
 const sourceLabel=o=>({market:'Opinn markaður',purchase:'Fyrri innkaup',reference:'Vörutilvísun',import:'Innlesið verð'}[o.source_kind]||'Innlesið verð');
-const priceCell=o=>o.unit_price!=null?`<strong>${money(o.unit_price,o.currency)} / ${esc(o.unit)}</strong><small>Án VSK · ${o.pack_quantity} ${esc(o.unit)} / pakkning</small><small>Pakkning: ${money(o.price,o.currency)} ${o.vat_included?'m. VSK':'án VSK'}</small>`:o.price!=null?`<strong>${money(o.price,o.currency)} / pakkning</strong><small>VSK óstaðfest · ekki í nettósamanburði</small>`:`<span class="muted">${esc(o.price_status||'Verð vantar')}</span>`;
+const priceCell=o=>o.unit_price!=null?`<strong>${money(o.unit_price,o.currency)} / ${esc(o.unit)}</strong><small>Án VSK · ${o.pack_quantity} ${esc(o.unit)} / pakkning</small><small>Pakkning: ${money(o.price,o.currency)} ${o.vat_included?'m. VSK':'án VSK'}</small>`:o.price!=null?`<strong>${money(o.price,o.currency)} / pakkning</strong><small>${o.vat_included===true?'Með VSK':'VSK óstaðfest'} · ${o.pack_quantity?o.pack_quantity+' '+esc(o.unit):'magn sölueiningar óstaðfest'}</small>`:`<span class="muted">${esc(o.price_status||'Verð vantar')}</span>`;
 const attrsLabel=o=>{const a=ProductSearch.attributes(o);return a.kind==='drill'?[a.diameter_mm!=null?a.diameter_mm+' mm':'',({steel:'Stál / málmur',wood:'Tré',masonry:'Steinn / múr',tile:'Flísar / gler'})[a.usage]||'Notkun óstaðfest',a.inferred?'Greint úr lýsingu':'Staðfest vörueinkenni'].filter(Boolean).join(' · '):'';};
 const link=o=>o.url?`<a href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">${o.link_kind==='category'?'Birgjaflokkur ↗':'Skoða hjá birgi ↗'}</a>`:'Vörutengil vantar';
 let state = {offers:[], projects:[], items:[], history:[], suppliers:[]};
@@ -28,7 +28,7 @@ async function refresh() {
   $('stats').innerHTML = [[purchases.length,'Vörur úr innkaupagögnum'],[market.length,'Vörufærslur af markaði'],[market.filter(o=>o.price!=null).length,'Birt opinber verð'],[market.filter(o=>o.price==null).length,'Markaðsverð vantar']].map(([n,label])=>`<div class="stat"><span>${label}</span><strong>${n}</strong></div>`).join('');
   const m=state.metadata?.project;
   $('coverage').textContent=(m?`${m.invoiceProducts} vöruskráningar úr ${m.invoiceRows} reikningslínum · ${m.dateStart}–${m.dateEnd}. Magn er reikningsmagn, ekki mæld notkun. Kaupverð vantar. `:'Einkagögn úr verkefni hafa ekki verið sett í þessa uppsetningu. ')+(state.metadata?.market?.scope||'')+' Nettóverð birtist aðeins þegar VSK og pakkastærð eru þekkt.';
-  renderProducts(); renderProjects(); renderSuppliers();
+  renderProducts(); renderProjects(); renderSuppliers(); renderSync(state.metadata?.sync||{});
 }
 function table(headers, rows) {return `<div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;}
 function renderProducts() {
@@ -53,6 +53,11 @@ function detail(id) {
   const history=state.history.filter(h=>h.offer_id===id);
   if(history.length)$('detail').innerHTML+='<h3>Verðsaga</h3>'+table(['DAGSETNING','VERÐ ÁN VSK / EININGU'],history.map(h=>`<tr><td>${date(h.observed_at)}</td><td>${money(h.price/(h.vat_included?1+h.vat_rate/100:1)/h.pack_quantity,h.currency)} / ${esc(h.unit)}</td></tr>`).join(''));
   if(o.links?.length)$('detail').innerHTML+='<h3>Heimildir fyrri flokkunar</h3><p class="muted">Flokkunarheimild getur verið flokkasíða eða svipuð vara; hún er ekki sjálfkrafa staðfest vörutenging.</p>'+o.links.filter(l=>l.url).map(l=>`<p><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a><small> ${esc(l.evidence)}</small></p>`).join('');
+  if(o.collector){
+    $('detail').insertAdjacentHTML('beforeend','<div id="auto-history"></div>');
+    api('market-history?key='+encodeURIComponent(o.history_key||o.key)).then(rows=>{if(!$('auto-history')||$('detail').dataset.productId!==String(id))return;$('auto-history').innerHTML='<h3>Saga sjálfvirkra athugana</h3>'+table(['DAGSETNING','BIRT VERÐ / SÖLUEININGU','FRAMBOÐ'],rows.map(r=>`<tr><td>${date(r.observed_at)}</td><td>${r.price==null?'Verð vantar':money(r.price,r.currency)}</td><td>${esc(r.availability)}</td></tr>`).join(''));}).catch(()=>{});
+  }
+  $('detail').dataset.productId=String(id);
   if(!$('detail-dialog').open)$('detail-dialog').showModal();
 }
 function renderProjects() {
@@ -65,6 +70,17 @@ function renderProjects() {
 function renderSuppliers() {
   $('supplier-cards').innerHTML=[...new Set([...state.suppliers,...state.offers.map(o=>o.supplier)])].sort().map(s=>{const rows=state.offers.filter(o=>o.supplier===s);return `<div class="card"><h3>${esc(s)}</h3><p class="muted">${rows.filter(o=>o.source_kind==='purchase').length} úr innkaupum · ${rows.filter(o=>o.source_kind==='market').length} af markaði</p><span class="pill ${rows.length?'':'warn'}">${rows.length?'Gögn í grunni':'Gögn vantar'}</span></div>`;}).join('');
 }
+function renderSync(info){
+  $('refresh-market').disabled=!!info.running;
+  $('refresh-market').textContent=info.running?'Uppfærsla í gangi…':'↻ Uppfæra markaðsverð';
+  $('sync-summary').textContent='Sjálfvirk uppfærsla á 24 klst. fresti meðan forritið keyrir. '+(info.finished_at?'Síðasta keyrsla: '+new Date(info.finished_at).toLocaleString('is-IS')+'. ':'')+'Aðgangshöfnun eða villa merkir að eldri verð geta enn birst. Verðathugunardagur hverrar vöru ræður ferskleika.';
+  const labels={ok:'Tenging virkar',partial:'Hluti listans sóttur',blocked:'Aðgangi hafnað',error:'Villa í tengingu',not_connected:'Tenging ólokið'};
+  const names={thor:'Þór hf.',husa:'Húsasmiðjan',byko:'BYKO',sindri:'Sindri',fossberg:'Fossberg',isol:'Ísól'};
+  $('sync-sources').innerHTML=table(['BIRGIR','STAÐA','ÞEKJA','UPPLÝSINGAR'],Object.entries(info.sources||{}).map(([key,v])=>`<tr><td>${esc(names[key]||key)}</td><td><span class="pill ${v.status==='ok'?'':'warn'}">${esc(labels[v.status]||v.status)}</span></td><td>${v.loaded||0}${v.expected?' / '+v.expected:''}<small>${key==='husa'?'Slóðafjöldi í síðukorti er ekki staðfestur vörufjöldi.':''}</small></td><td>${esc(v.scope||'')}<small>${esc(v.error||'')}</small></td></tr>`).join(''));
+}
+$('refresh-market').onclick=()=>run(async()=>{const result=await api('refresh-market',{});$('status').textContent=result.started?'Söfnun hafin. Þú getur haldið áfram að nota kerfið.':'Uppfærsla er þegar í gangi.';renderSync(await api('sync-status'));});
+let wasSyncing=false;
+setInterval(()=>run(async()=>{const info=await api('sync-status');renderSync(info);if(wasSyncing&&!info.running)await refresh();wasSyncing=!!info.running;}),15000);
 async function run(fn){try{await fn();}catch(e){$('status').textContent=e.message;}}
 document.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
