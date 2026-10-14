@@ -39,6 +39,7 @@ def connect():
         project_id INTEGER, offer_id INTEGER, quantity REAL NOT NULL,
         PRIMARY KEY(project_id, offer_id));
         CREATE TABLE IF NOT EXISTS product_overrides (offer_id INTEGER PRIMARY KEY, category TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS product_details (offer_id INTEGER PRIMARY KEY, data TEXT NOT NULL, checked_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS product_images (offer_id INTEGER PRIMARY KEY, url TEXT NOT NULL, checked_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS bom_lists (
         id INTEGER PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL,
@@ -137,8 +138,10 @@ def catalogue():
     with connect() as db:
         overrides={r['offer_id']:r['category'] for r in db.execute('SELECT * FROM product_overrides')}
         images={r['offer_id']:r['url'] for r in db.execute('SELECT * FROM product_images')}
+        details={r['offer_id']:json.loads(r['data']) for r in db.execute('SELECT * FROM product_details')}
     from product_extras import image_url
     for r in offers+extra:
+        r.update(details.get(r['id'],{}))
         r['manual_category']=overrides.get(r['id'],'')
         r['image_url']=image_url(r.get('image_url') or images.get(r['id'],''))
     return dict(offers=offers + extra, projects=projects, items=items, history=history, suppliers=SUPPLIERS, metadata=metadata)
@@ -152,37 +155,46 @@ def save_classification(oid, category):
         else:db.execute('DELETE FROM product_overrides WHERE offer_id=?',(oid,))
 
 
-def supplier_image(oid):
+def supplier_details(oid):
     offer=next((o for o in catalogue()['offers'] if o['id']==oid),None)
     if not offer:raise ValueError('Vara fannst ekki.')
-    if offer.get('image_url'):return offer['image_url']
-    # Only known market product routes, never invoice/category links or arbitrary input.
-    if offer.get('source_kind')!='market' or offer.get('link_kind')=='category':return ''
+    if offer.get('source_kind')!='market' or offer.get('link_kind')=='category':return {}
     with connect() as db:
-        cached=db.execute('SELECT * FROM product_images WHERE offer_id=?',(oid,)).fetchone()
-    if cached and (datetime.now(timezone.utc)-datetime.fromisoformat(cached['checked_at'])).total_seconds()<86400:return cached['url']
+        cached=db.execute('SELECT * FROM product_details WHERE offer_id=?',(oid,)).fetchone()
+    if cached and (datetime.now(timezone.utc)-datetime.fromisoformat(cached['checked_at'])).total_seconds()<86400:return json.loads(cached['data'])
     from market_sync import Client,SOURCES
-    from product_extras import page_image
-    from urllib.parse import urlsplit
+    from product_extras import page_details
     url=offer.get('url','');origin=next((origin for name,origin in SOURCES.values() if name==offer['supplier'] and urlsplit(origin).hostname==urlsplit(url).hostname),None)
-    if not origin:return ''
+    if not origin:return {}
     try:body,_=Client(origin).get(url)
-    except (OSError,ValueError) as e:raise ValueError('Ekki tókst að sækja mynd frá birgi.') from e
-    image=page_image(body,url)
-    with connect() as db:db.execute('INSERT OR REPLACE INTO product_images VALUES(?,?,?)',(oid,image,datetime.now(timezone.utc).isoformat()))
-    return image
+    except (OSError,ValueError) as e:raise ValueError('Ekki tókst að sækja vöruupplýsingar frá birgi.') from e
+    details=page_details(body,url)
+    if not details['image_url']:details['image_url']=offer.get('image_url','')
+    details['details_checked_at']=datetime.now(timezone.utc).isoformat()
+    with connect() as db:db.execute('INSERT OR REPLACE INTO product_details VALUES(?,?,?)',(oid,json.dumps(details,ensure_ascii=False),details['details_checked_at']))
+    return details
+
+
+def supplier_image(oid):
+    return supplier_details(oid).get('image_url','')
 
 SYNC_THREAD = None
 SYNC_MUTEX = threading.Lock()
+SYNC_STOP = threading.Event()
 
 def sync_status():
     path = ROOT / 'data/market-status.json'
     data = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'sources': {}}
     from market_sync import is_running
     data['running'] = bool(SYNC_THREAD and SYNC_THREAD.is_alive()) or is_running(ROOT / 'data/market-sync.lock')
+    full=ROOT/'data/full-sync.json'
+    if full.exists():
+        data['full']=json.loads(full.read_text(encoding='utf-8'))
+        if data['full'].get('running') and not data['running']:
+            data['full'].update(running=False,status='interrupted')
     return data
 
-def start_sync():
+def start_sync(mode='batch'):
     global SYNC_THREAD
     with SYNC_MUTEX:
         if sync_status()['running']:
@@ -190,9 +202,13 @@ def start_sync():
         def worker():
             try:
                 from market_sync import run
-                run(root=ROOT)
+                if mode=='full':
+                    from full_sync import full_pass
+                    full_pass(ROOT,SYNC_STOP)
+                else:run(root=ROOT)
             except Exception as error:
                 print('Market refresh failed:', error, flush=True)
+        SYNC_STOP.clear()
         SYNC_THREAD = threading.Thread(target=worker, daemon=True)
         SYNC_THREAD.start()
         return True
@@ -214,7 +230,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Cache-Control', 'no-store')
-        self.send_header('Content-Security-Policy', "default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'")
+        self.send_header('Content-Security-Policy', "default-src 'self'; style-src 'self'; img-src 'self' https:; script-src 'self'; frame-ancestors 'none'; base-uri 'none'")
         self.end_headers()
         self.wfile.write(body)
 
@@ -271,9 +287,12 @@ class Handler(BaseHTTPRequestHandler):
                 save_classification(int(data['id']),data.get('category',''))
                 return self.send({'ok':True})
             if self.path == '/api/product-image':
-                return self.send({'image_url':supplier_image(int(data['id']))})
+                return self.send(supplier_details(int(data['id'])))
             if self.path == '/api/refresh-market':
-                return self.send({'started': start_sync()})
+                return self.send({'started': start_sync('full' if data.get('mode')=='full' else 'batch')})
+            if self.path == '/api/stop-sync':
+                SYNC_STOP.set()
+                return self.send({'ok':True})
             if self.path == '/api/import':
                 return self.send({'imported': import_csv(str(data.get('csv', '')))})
             if self.path == '/api/bom-import':
@@ -325,7 +344,7 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     connect().close()
-    print('Innkaupsferil: http://127.0.0.1:8000 (local access only)', flush=True)
+    print('Njörður: http://127.0.0.1:8000 (local access only)', flush=True)
     if os.environ.get('INNKAUP_AUTO_REFRESH', '1') == '1':
         threading.Thread(target=refresh_loop, daemon=True).start()
     server = ThreadingHTTPServer(('127.0.0.1', 8000), Handler)

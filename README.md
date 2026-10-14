@@ -1,4 +1,4 @@
-# Innkaupsferil
+# Njörður
 
 Leitanlegur vörugrunnur og verðsamanburður fyrir innkaup. Fyrsta keyranlega útgáfa; íslenskt viðmót, Python 3.11+ og SQLite. Engar utanaðkomandi keyrsluháðar pakkningar.
 
@@ -161,3 +161,14 @@ Birgjayfirlit sýnir nú líka kannaða birgja sem hafa engar vörur í grunni:
 Vöruspjaldið sýnir mynd frá birgja þegar myndaslóð fylgir vöruviðmóti eða opinber vörusíða birtir myndalýsigögn. Fyrir eldri færslur er mynd sótt þegar spjaldið er opnað. Engin mynd er giskuð út frá heiti eða óstaðfestum flokkatengli. Myndaleysi eða aðgangshöfnun birtist í spjaldinu; mynd getur táknað vörufjölskyldu, svo staðfesta þarf afbrigði. Myndir eru hlaðnar frá birgja með referrerpolicy=no-referrer.
 
 Í „Skoða“ → „Breyta flokkun“ má velja eða skrifa flokk, einnig fyrir óflokkaðar vörur. Flokkurinn gildir fyrir þessa vörufærslu, fer fram yfir sjálfvirka flokkun og vistast í data/catalog.sqlite. Upprunaleg birgjaflokkun er varðveitt. „Nota sjálfvirka flokkun“ eyðir eigin leiðréttingu. Verð og vörunúmer eru ekki breytt með þessari aðgerð. Varðveittu data/catalog.sqlite við uppfærslu uppsetningar.
+
+
+## Njörður v0.6 – myndir, birgjalýsingar og heildarlestur
+
+Nýtt heiti og sjávarþema. Fyrri gagnagrunnur og auðkenni haldast; engin gögn þurfa að flytjast vegna nafnabreytingar.
+
+Myndavillan var í Content-Security-Policy: ytri HTTPS-myndir eru nú leyfðar sem myndir, en JavaScript er áfram aðeins frá forritinu. Vörulýsing og birgjaflokkar eru sótt úr opinberum vörulýsigögnum; Wix-vöruflokkar eru tengdir nákvæmri vöruslóð. Barki 35-30-100024 er viðmiðunarpróf: mynd, hraðtengislýsing, þrýstiþol/flæði og flokkar. Innfelld viðmiðunar-/staðgengilsverð eru ekki lesin inn sem kaupverð. Lýsingar birtast sem texti og nýtast í leit og sjálfvirkri flokkun. Eigin flokkun hefur alltaf forgang.
+
+„Lesa alla birgja“ fer heila umferð í lotum yfir tengdar vöruskrár, frá vistuðum bendli. Nýjar vörur og breytt verð/framboð vistast eftir hverja lotu. Birgjum er skipt á milli lota; lokaður eða bilaður birgir er merktur og kemur ekki í veg fyrir hina. Ótengdir birgjar verða ekki sjálfkrafa tengdir. Heildarstaða, loknir birgjar og villur eru í data/full-sync.json. „Stöðva eftir lotu“ bíður eftir vistun núverandi lotu. Eftir lokun forrits má hefja nýja umferð frá vistuðum stöðum; birgjar sem voru áður yfirfarnir eru þá skoðaðir aftur. Forritið þarf að vera í gangi og stórar skrár geta tekið marga klukkutíma eða lengur. Þetta tryggir ekki tæmandi þekju allra afbrigða, innskráningarverða eða lokaðra vefja.
+
+Venjulegur uppfærsluhnappur og dagleg staðbundin keyrsla taka áfram eina lotu frá hverjum birgi. Heildarlestur er val notanda og er ekki ræstur sjálfkrafa við opnun.

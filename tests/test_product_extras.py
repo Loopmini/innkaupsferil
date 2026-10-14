@@ -28,3 +28,17 @@ class ExtrasTest(unittest.TestCase):
  def test_invoice_links_are_not_fetched_as_product_images(self):
   with tempfile.TemporaryDirectory() as td,patch.object(app,'DB',Path(td)/'test.sqlite'),patch.object(app,'read_supplements',return_value=([{'id':-5,'source_kind':'purchase','url':'https://thor.is/category'}],{})),patch('market_sync.Client') as client:
    self.assertEqual(app.supplier_image(-5),'');client.assert_not_called()
+ def test_barki_description_category_and_image_without_price(self):
+  from product_extras import page_details
+  body='''<meta property="og:image" content="https://static.wixstatic.com/product.jpg"><script type="application/ld+json">{"@type":"Product","name":"1 1/2","description":"Hraðtengi m/ró. Þrýstiþol 300 bör.","offers":{"price":"10"}}</script><script id="wix-warmup-data" type="application/json">{"product":{"urlPart":"1-12","categories":[{"name":"Glussa"},{"name":"Hraðtengi"},{"name":"Vörur"}]}}</script>'''
+  r=page_details(body,'https://www.barki.is/vorur/1-12')
+  self.assertEqual(r['supplier_categories'],['Glussa','Hraðtengi']);self.assertIn('300 bör',r['description']);self.assertTrue(r['image_url']);self.assertNotIn('price',r)
+ def test_csp_allows_supplier_images_only_as_images(self):
+  import threading,urllib.request
+  from http.server import ThreadingHTTPServer
+  server=ThreadingHTTPServer(('127.0.0.1',0),app.Handler)
+  thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+  try:
+   with urllib.request.urlopen('http://127.0.0.1:'+str(server.server_port)+'/') as response:
+    csp=response.headers['Content-Security-Policy'];self.assertIn("img-src 'self' https:",csp);self.assertIn("script-src 'self'",csp)
+  finally:server.shutdown();server.server_close()
