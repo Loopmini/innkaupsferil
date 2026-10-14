@@ -47,3 +47,36 @@ class SafetyTest(unittest.TestCase):
    for n,raw in entries.items():z.writestr(n,raw)
   with self.assertRaises(ValueError):data_safety.restore(self.root,self.db,b['name'])
   with app.connect() as db:self.assertEqual(db.execute('SELECT price FROM offers').fetchone()[0],100)
+
+ def test_windows_backup_and_restore_close_handles_before_cleanup(self):
+  # Retain references so GC cannot hide leaked handles on Linux.
+  app.import_csv(self.content())
+  original_connect=sqlite3.connect;original_temp=tempfile.TemporaryDirectory
+  handles=[]
+  class Tracked(sqlite3.Connection):
+   closed=False
+   def close(self):
+    super().close();self.closed=True
+  def tracked_connect(path,*args,**kwargs):
+   con=original_connect(path,*args,factory=Tracked,**kwargs);handles.append(con);return con
+  class WindowsTemp(original_temp):
+   def __exit__(self,*args):
+    try:
+     if any(not c.closed for c in handles):raise PermissionError('WinError 32: SQLite handle still open at cleanup')
+    finally:super().__exit__(*args)
+  with patch.object(data_safety.sqlite3,'connect',tracked_connect),patch.object(data_safety.tempfile,'TemporaryDirectory',WindowsTemp):
+   b=data_safety.create(self.root,self.db)
+   data_safety.restore(self.root,self.db,b['name'])
+  self.assertTrue(handles);self.assertTrue(all(c.closed for c in handles))
+
+ def test_backup_error_also_closes_both_handles(self):
+  app.import_csv(self.content());handles=[];original=sqlite3.connect
+  class Failing(sqlite3.Connection):
+   closed=False
+   def backup(self,*args,**kwargs):raise sqlite3.OperationalError('simulated backup failure')
+   def close(self):super().close();self.closed=True
+  def tracked(path,*args,**kwargs):
+   con=original(path,*args,factory=Failing,**kwargs);handles.append(con);return con
+  with patch.object(data_safety.sqlite3,'connect',tracked):
+   with self.assertRaises(sqlite3.OperationalError):data_safety.create(self.root,self.db)
+  self.assertEqual(len(handles),2);self.assertTrue(all(c.closed for c in handles))

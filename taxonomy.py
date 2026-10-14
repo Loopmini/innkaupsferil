@@ -16,7 +16,8 @@ UNKNOWN = 'other.review.unknown'
 SPEC_FIELDS = {'thickness_mm':'Þykkt (mm)', 'width_mm':'Breidd (mm)', 'length_mm':'Lengd (mm)',
                'strength_class':'Styrkleikaflokkur', 'treatment':'Yfirborðsmeðhöndlun',
                'material':'Efni / viðartegund', 'standard':'Staðall', 'diameter_mm':'Þvermál (mm)', 'nominal_size':'Nafnstærð (DN)', 'pressure_class':'Þrýstiflokkur'}
-NUMERIC = {'thickness_mm','width_mm','length_mm','diameter_mm'}
+SPEC_FIELDS.update({'head_weight_g':'Þyngd hauss (g)','weight_g':'Skráð þyngd (g)','handle_material':'Skaftgerð / efni','grip':'Grip','thread':'Gengja','coating':'Húðun','connection_type':'Tengigerð','seal_material':'Þéttiefni','temperature_range':'Hitastigssvið','application':'Skráð notkun','voltage_v':'Spenna (V)','current_a':'Straumur (A)','power_w':'Afl (W)','ip_rating':'IP-vörn','battery_system':'Rafhlöðukerfi','capacity':'Afköst','included':'Það sem fylgir','limitations':'Takmarkanir','certifications':'Vottanir'})
+NUMERIC = {'thickness_mm','width_mm','length_mm','diameter_mm','head_weight_g','weight_g','voltage_v','current_a','power_w'}
 LEGACY = {
  'Borar og snittvörur':'tools.drilling.unspecified', 'Skurðar- og slípivörur':'tools.cutting.unspecified',
  'Handverkfæri og mælitæki':'tools.hand.unspecified', 'Vélar og rafmagnsverkfæri':'tools.power.power',
@@ -101,6 +102,11 @@ RULES = [
 
 def detect(text):
     n = norm(re.split(r'\s+(?:fyrir|f/|f\.|með|m/)\s*', str(text or ''), maxsplit=1, flags=re.I)[0])
+    if not re.search(r'hulstur|haldari|slykkj|tengistykki|hamarhaus|varahlut|heftibyss',n):
+        for key,pattern in [('claw_hammers',r'klaufham(?:ar|rar)|claw hammer'),('rubber_mallets',r'gummiham(?:ar|rar)|rubber mallet'),('sledgehammers',r'\bsleggj|sledgehammer'),('ball_peen',r'kuluham(?:ar|rar)|ball.peen'),('striking_hammers',r'slagham(?:ar|rar)'),('hammers_unspecified',r'\b(?:munnhamar|rafvirkjahamar|hamar)\b|^hamrar$')]:
+            if re.search(pattern,n):return 'tools.hand.'+key
+    for key,pattern in [('pliers',r'\b(?:t[oö]ng|tangir|bitto?ng|vatnspumpu?to?ng)\b'),('screwdrivers',r'\bskrufjarn\b'),('wrenches',r'\b(?:skiptilykill|skiptilyklar|fastlykill|fastlyklar|sexkantlykill|sexkantlyklar)\b'),('knives',r'\b(?:d[uú]kahnífur|dukahnífar|dukahníf|hnífur|hnifur|hnifar)\b')]:
+        if re.search(pattern,n):return 'tools.hand.'+key
     # Avoid treating measurements of a machine/accessory as dimensions of its material.
     for leaf, pattern in PRIORITY + RULES:
         if leaf=='building.timber.treated' and re.search(r'ogagnvar|ekki gagnvar',n):continue
@@ -131,7 +137,7 @@ def classify(o, override):
                 if len(hits)==1:leaf=hits.pop();source='Flokkur birgis';evidence=' → '.join(cats)
                 else:leaf=UNKNOWN;source='Til yfirferðar';evidence='Flokkunarupplýsingar vantar eða eru ósamhljóða.'
     leaf=leaf if leaf in LEAVES else UNKNOWN
-    review=leaf.endswith(('.unspecified','.unknown'))
+    review=leaf.endswith(('.unspecified','.unknown','_unspecified'))
     return {'id':leaf,'path':LEAVES[leaf],'source':source,'evidence':evidence[:600],
             'needs_review':review,'manual':bool(override.get('classification_id') or o.get('manual_category'))}
 
@@ -167,6 +173,12 @@ def specifications(o, classification, override):
         for m in re.finditer(r'\bdn\s*(\d+)\b',n):put('nominal_size','DN'+m[1],'Vöruheiti/lýsing: '+m[0])
         for m in re.finditer(r'\bpn\s*(\d+)\b',n):put('pressure_class','PN'+m[1],'Vöruheiti/lýsing: '+m[0])
         for m in re.finditer(r'thvermal\s*[:=]?\s*(\d+(?:\.\d+)?)\s*mm',n):put('diameter_mm',float(m[1]),'Vöruheiti/lýsing: '+m[0])
+    # Only explicit, labelled quantities; a hammer's total weight is not its head weight.
+    for label,raw in [('Vöruheiti',o.get('name','')),('Birgjalýsing',o.get('description',''))]:
+        n=norm(raw)
+        for key,pattern in [('head_weight_g',r'(?:thyngd hauss|head weight)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(g|gr|kg)\b'),('voltage_v',r'(?:spenna|voltage)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(v)\b'),('current_a',r'(?:straumur|current)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(a)\b'),('power_w',r'(?:afl|power)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(w)\b')]:
+            for m in re.finditer(pattern,n):put(key,float(m[1])*(1000 if m[2]=='kg' else 1),label+': '+m[0])
+        for m in re.finditer(r'\bip\s*([0-6x][0-9x])\b',n):put('ip_rating','IP'+m[1].upper(),label+': '+m[0])
     for prop in (o.get('technical_properties') or [])[:50]:
         if not isinstance(prop,dict):continue
         name=norm(prop.get('name'));raw=norm(prop.get('value'));unit=norm(prop.get('unit'))
@@ -177,6 +189,17 @@ def specifications(o, classification, override):
             units=units or {'mmt':'mm','cmt':'cm','mtr':'m'}.get(unit,unit) or ('mm' if '(mm)' in name else '')
             if match and units in ('mm','cm','m'):
                 put(key,float(match[1])*{'mm':1,'cm':10,'m':1000}[units],'Tæknigögn birgis: '+str(prop.get('name'))+' '+str(prop.get('value'))+' '+str(prop.get('unit')))
+        numeric_labels={'head_weight_g':('thyngd hauss','head weight'),'weight_g':('thyngd','weight'),'voltage_v':('spenna','voltage'),'current_a':('straumur','current'),'power_w':('afl','power')}
+        unit_alias={'grm':'g','kgm':'kg','vlt':'v','amp':'a','wtt':'w'}
+        for key,labels in numeric_labels.items():
+            if name not in labels:continue
+            match=re.fullmatch(r'(\d+(?:\.\d+)?)\s*(kg|gr|g|v|a|w)?',raw)
+            u=(match[2] if match else '') or unit_alias.get(unit,unit)
+            accepted=('kg','gr','g') if key.endswith('_g') else ({'voltage_v':('v',),'current_a':('a',),'power_w':('w',)}[key])
+            if match and u in accepted:put(key,float(match[1])*(1000 if u=='kg' else 1),'Tæknigögn birgis: '+str(prop.get('name'))+' '+str(prop.get('value'))+' '+str(prop.get('unit')))
+        text_labels={'handle_material':('skaft','skaftgerd','handle material'),'grip':('grip',),'thread':('gengja','thread'),'coating':('hudun','coating'),'connection_type':('tengigerd','connection type'),'seal_material':('thettiefni','seal material'),'temperature_range':('hitastigssvid','temperature range'),'ip_rating':('ip-vorn','ip rating'),'battery_system':('rafhlodukerfi','battery system'),'capacity':('afkost','capacity'),'included':('thad sem fylgir','included'),'limitations':('takmarkanir','limitations'),'certifications':('vottanir','certifications'),'application':('notkun','application')}
+        for key,labels in text_labels.items():
+            if name in labels and valid_spec(key,prop.get('value')):put(key,prop['value'],'Tæknigögn birgis: '+prop['name'])
         for key,labels in [('strength_class',('styrkleikaflokkur','strength class')),('treatment',('yfirbordsmedhondlun','treatment')),('material',('efni','material')),('standard',('stadall','standard'))]:
             if name in labels and valid_spec(key,prop.get('value')):put(key,prop['value'],'Tæknigögn birgis: '+prop['name'])
     # Structured supplier fields are accepted only under these explicit, unit-bearing keys.
@@ -209,7 +232,8 @@ def validate_override(data):
     tags=data.get('search_tags',[])
     if not isinstance(tags,list) or len(tags)>20 or any(not isinstance(t,str) or not 0<len(t.strip())<=60 for t in tags):
         raise ValueError('Hámark 20 leitartög, 1–60 stafir hvert.')
-    return {'classification_id':leaf,'specifications':specs,'search_tags':list(dict.fromkeys(t.strip() for t in tags))}
+    if type(data.get('keep_separate',False)) is not bool:raise ValueError('Ógild aðgreining vörufærslu.')
+    return {'keep_separate':data.get('keep_separate',False),'classification_id':leaf,'specifications':specs,'search_tags':list(dict.fromkeys(t.strip() for t in tags))}
 
 
 def enrich(o,override=None):

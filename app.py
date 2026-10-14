@@ -19,6 +19,7 @@ import taxonomy
 import data_safety
 import import_manager
 import procurement
+import supplier_registry
 DATA_LOCK = threading.RLock()
 
 ROOT = Path(__file__).parent
@@ -53,6 +54,7 @@ def connect():
         rows_json TEXT NOT NULL, selections_json TEXT NOT NULL DEFAULT '{}', sheet TEXT);''')
     import_manager.setup(db)
     procurement.setup(db)
+    supplier_registry.setup(db)
     return db
 
 def number(value, label, positive=False):
@@ -245,7 +247,7 @@ def start_sync_locked(mode='batch',selected=None):
                 if mode=='full':
                     from full_sync import full_pass
                     full_pass(ROOT,SYNC_STOP,selected)
-                else:run(root=ROOT,selected=selected)
+                else:run(root=ROOT,selected=selected,index_only=mode=='index')
             except Exception as error:
                 print('Market refresh failed:', error, flush=True)
         data_safety.create(ROOT,DB,'before_supplier_sync')
@@ -285,6 +287,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def get_response(self):
         path = urlsplit(self.path).path
+        if path == '/api/supplier-profiles':return self.send(supplier_registry.listing(__import__(__name__)))
         if path == '/api/backups':return self.send(data_safety.listing(ROOT))
         if path == '/api/backup-download':
             name=parse_qs(urlsplit(self.path).query).get('name',[''])[0]
@@ -329,14 +332,14 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(catalogue())
         if path == '/api/template':
             return self.send((','.join(FIELDS) + '\n').encode(), content_type='text/csv; charset=utf-8')
-        files = {'/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/families.js': ('families.js','text/javascript'), '/family-ui.js': ('family-ui.js','text/javascript'), '/supplier-ui.js': ('supplier-ui.js','text/javascript'), '/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
         if path in files:
             name, kind = files[path]
             return self.send((ROOT / 'static' / name).read_bytes(), content_type=kind + '; charset=utf-8')
         self.send({'error': 'Fannst ekki'}, 404)
 
     def do_POST(self):
-        if self.path.startswith('/api/ai-'):return self.post_response()
+        if self.path.startswith('/api/ai-') or self.path=='/api/supplier-probe':return self.post_response()
         with DATA_LOCK:return self.post_response()
 
     def post_response(self):
@@ -353,6 +356,8 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError('Ógild beiðni.')
+            if self.path == '/api/supplier-save':return self.send(supplier_registry.save(__import__(__name__),data))
+            if self.path == '/api/supplier-probe':return self.send(supplier_registry.probe(__import__(__name__),data))
             if self.path in ('/api/backup-create','/api/backup-restore'):
                 if sync_status()['running']:raise ValueError('Stöðvaðu innlestur og bíddu eftir vistun áður en þú tekur eða endurheimtir afrit.')
                 if self.path.endswith('create'):return self.send(data_safety.create(ROOT,DB,'manual'))
@@ -451,7 +456,7 @@ class Handler(BaseHTTPRequestHandler):
                     details.update({k:offer[k] for k in ('classification','specifications','specification_evidence','specification_conflicts','missing_specifications','search_tags','product_enrichment')})
                 return self.send(details)
             if self.path == '/api/refresh-market':
-                return self.send({'started': start_sync('full' if data.get('mode')=='full' else 'batch',data.get('sources'))})
+                return self.send({'started': start_sync(data.get('mode') if data.get('mode') in ('full','index') else 'batch',data.get('sources'))})
             if self.path == '/api/stop-sync':
                 SYNC_STOP.set()
                 return self.send({'ok':True})

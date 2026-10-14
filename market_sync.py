@@ -147,6 +147,11 @@ def parse_husa(body,url):
  r['note']='Vörusíða lesin sjálfvirkt. VSK innifalinn samkvæmt söluskilmálum; skatthlutfall og magn einingar eru ekki áætluð.'
  return r
 
+def inspect_index(client,urls):
+ """Compare complete discovered URL sets, never infer product deletion."""
+ record=getattr(client,'record_index',None)
+ return record(urls) if callable(record) else {}
+
 def thor(client,previous,state,progress):
  records={};total=None;pages=1;page=1
  while page<=pages:
@@ -159,7 +164,7 @@ def thor(client,previous,state,progress):
    if pages>500:raise ValueError('Unexpectedly large catalogue')
   for p in data:
    r=parse_thor(p);records[r['key']]=r
-  progress(dict(stage=f'Síða {page}/{pages}',loaded=len(records),expected=total))
+  progress(dict(stage=f'Síða {page}/{pages}',loaded=len(records),expected=total,work_done=page,work_total=pages))
   page+=1
  if len(records)!=total:raise ValueError(f'Incomplete API traversal: {len(records)}/{total}; previous snapshot retained')
  # API covers public parent products; variable child selections are not separate prices.
@@ -172,8 +177,11 @@ def husa(client,previous,state,progress,budget):
  # Prioritize drills initially, then rotate through every candidate without claiming each URL is a product.
  urls.sort(key=lambda u:(0 if '/borar-og-borasett/' in u else 1,u))
  if not urls:raise ValueError('No sitemap candidates')
+ index=inspect_index(client,urls)
+ if getattr(client,'index_only',False) is True:return previous,{**state,'status':'partial','error':None,'loaded':len(previous),'index':index,'index_check':'Síðukort skoðað; verð og vörusíður ekki endurlesin'}
  cursor=int(state.get('cursor',0))%len(urls);records={r['key']:r for r in previous};errors=[];checked=0
  stale=sorted([r for r in previous if (datetime.now(timezone.utc)-datetime.fromisoformat(r['observed_at'])).total_seconds()>86400],key=lambda r:r['observed_at'])[:min(50,budget)]
+ work_total=len(stale)+min(budget,len(urls));work_done=0
  for old in stale:
   try:
    page,_=client.get(old['url']);fresh=parse_husa(page,old['url'])
@@ -182,6 +190,7 @@ def husa(client,previous,state,progress,budget):
    if e.code in (401,403,429):raise
    errors.append(dict(url=old['url'],error=str(e)))
   except (ValueError,TimeoutError) as e:errors.append(dict(url=old['url'],error=str(e)))
+  work_done+=1;progress(dict(stage='Endurskoðar eldri vörur',work_done=work_done,work_total=work_total,loaded=len(records)))
  for n in range(min(budget,len(urls))):
   url=urls[(cursor+n)%len(urls)]
   try:
@@ -191,10 +200,10 @@ def husa(client,previous,state,progress,budget):
    if e.code in (401,403,429):raise
    errors.append(dict(url=url,error=str(e)))
   except (ValueError,TimeoutError) as e:errors.append(dict(url=url,error=str(e)))
-  checked+=1;progress(dict(stage=f'Vörusíða {checked}/{budget}',loaded=len(records),expected=len(urls)))
- return list(records.values()),dict(status='partial',scope='Síðukort í lotum; ekki allar slóðir eru vörur',loaded=len(records),expected=len(urls),cursor=(cursor+checked)%len(urls),checked_this_run=checked,errors=errors[:30],checked_at=now(),robots=client.robot_status)
+  checked+=1;work_done+=1;progress(dict(stage=f'Vörusíða {checked}/{min(budget,len(urls))}',loaded=len(records),expected=len(urls),work_done=work_done,work_total=work_total,scan_done=checked,scan_total=len(urls)))
+ return list(records.values()),dict(status='partial',scope='Síðukort í lotum; ekki allar slóðir eru vörur',loaded=len(records),expected=len(urls),index=index,cursor=(cursor+checked)%len(urls),checked_this_run=checked,errors=errors[:30],checked_at=now(),robots=client.robot_status)
 
-def run(root=ROOT,husa_limit=100,selected=None):
+def run(root=ROOT,husa_limit=100,selected=None,index_only=False):
  directory=root/'data';directory.mkdir(exist_ok=True)
  lock=directory/'market-sync.lock'
  if lock.exists() and not is_running(lock):lock.unlink(missing_ok=True)
@@ -203,6 +212,7 @@ def run(root=ROOT,husa_limit=100,selected=None):
  os.write(fd,str(os.getpid()).encode());os.close(fd)
  old=load(directory/'market-live.json',{'products':[],'meta':{}})
  statuses=load(directory/'market-status.json',{'sources':{}}).get('sources',{})
+ indexes=load(directory/'market-index.json',{})
  results={};started=now();chosen=selected or list(SOURCES)
  guard=threading.Lock();completed=[]
  runtime={k:{'phase':'queued','updated_at':started} for k in chosen}
@@ -214,11 +224,21 @@ def run(root=ROOT,husa_limit=100,selected=None):
    runtime[source].update(info,phase='running',updated_at=now())
    snapshot()
 
+ def record_index(key,urls):
+  current=sorted(set(urls));previous=indexes.get(key)
+  summary={'checked_at':now(),'total':len(current),'baseline':previous is None,
+    'added':None if previous is None else len(set(current)-set(previous['urls'])),
+    'missing':None if previous is None else len(set(previous['urls'])-set(current))}
+  with guard:indexes[key]={'urls':current,'checked_at':summary['checked_at']}
+  return summary
  def worker(key):
   supplier,origin=SOURCES[key];previous=[r for r in old['products'] if r['supplier']==supplier]
   try:
-   progress(key,{'stage':'Tengist birgi og athugar aðgang'})
+   if index_only and key not in ('husa','rubix','isfell','barki','wurth'):
+    return key,(previous,{**statuses.get(key,{}),'status':statuses.get(key,{}).get('status','not_connected'),'loaded':len(previous),'index_check':'Hraðskoðun síðukorts ekki útfærð fyrir þennan birgi'})
+   progress(key,{'stage':'Tengist birgi og athugar aðgang','started_at':now()})
    c=Client(origin)
+   c.index_only=index_only;c.record_index=lambda urls:record_index(key,urls)
    if key=='thor':return key,thor(c,previous,statuses.get(key,{}),lambda i:progress(key,i))
    if key=='husa':return key,husa(c,previous,statuses.get(key,{}),lambda i:progress(key,i),husa_limit)
    from supplier_catalogues import DIRECTORIES, collect
@@ -252,6 +272,7 @@ def run(root=ROOT,husa_limit=100,selected=None):
     current=(r['price'],r['currency'],r['availability'])
     if prev!=current:db.execute('INSERT INTO observations(product_key,observed_at,price,currency,availability) VALUES(?,?,?,?,?)',(r['key'],r['observed_at'],*current))
   atomic(directory/'market-live.json',payload)
+  atomic(directory/'market-index.json',indexes)
   result={'running':False,'started_at':started,'finished_at':now(),'sources':statuses,'loaded':len(products),'selected':chosen,'completed':completed,'runtime':runtime,'phase':'saved'}
   atomic(directory/'market-status.json',result)
   return result

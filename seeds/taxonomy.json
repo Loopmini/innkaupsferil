@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "groups": [
     {
       "id": "building",
@@ -746,6 +746,56 @@
             {
               "id": "tools.hand.unspecified",
               "name": "Vörutegund óstaðfest"
+            },
+            {
+              "id": "tools.hand.claw_hammers",
+              "name": "Klaufhamrar",
+              "description": "Til að reka og draga nagla; staðfesta þarf gerð, þyngd og skaft fyrir verkið."
+            },
+            {
+              "id": "tools.hand.rubber_mallets",
+              "name": "Gúmmíhamrar",
+              "description": "Til högga þar sem gúmmíhaus hentar; eiginleikar yfirborðs og hlutar ráða vali."
+            },
+            {
+              "id": "tools.hand.sledgehammers",
+              "name": "Sleggjur",
+              "description": "Þung handverkfæri til högga. Þyngd, lengd og efni ráða notkun."
+            },
+            {
+              "id": "tools.hand.ball_peen",
+              "name": "Kúluhamrar",
+              "description": "Hamrar með kúluenda fyrir viðeigandi málmvinnu."
+            },
+            {
+              "id": "tools.hand.striking_hammers",
+              "name": "Slaghamrar",
+              "description": "Stutt höggverkfæri; staðfesta þarf þyngd, haus og skaft."
+            },
+            {
+              "id": "tools.hand.hammers_unspecified",
+              "name": "Hamrar — gerð ótilgreind",
+              "description": "Tegund hamars þarf að staðfesta áður en hann er borinn saman."
+            },
+            {
+              "id": "tools.hand.pliers",
+              "name": "Tangir",
+              "description": "Velja þarf tangargerð og mál eftir gripi, skurði og vinnuaðstæðum."
+            },
+            {
+              "id": "tools.hand.wrenches",
+              "name": "Lyklar",
+              "description": "Mál og gerð lykils þurfa að passa við festingu."
+            },
+            {
+              "id": "tools.hand.screwdrivers",
+              "name": "Skrúfjárn",
+              "description": "Oddur, stærð og gerð þurfa að passa við skrúfu og aðstæður."
+            },
+            {
+              "id": "tools.hand.knives",
+              "name": "Hnífar",
+              "description": "Velja þarf blað og gerð fyrir efnið og verkið."
             }
           ]
         },
@@ -1395,5 +1445,80 @@
         }
       ]
     }
-  ]
+  ],
+  "comparison_fields": {
+    "tools.hand": [
+      "head_weight_g",
+      "weight_g",
+      "length_mm",
+      "handle_material",
+      "grip",
+      "material",
+      "standard"
+    ],
+    "tools.drilling": [
+      "diameter_mm",
+      "length_mm",
+      "material",
+      "coating",
+      "connection_type",
+      "standard"
+    ],
+    "tools.power": [
+      "battery_system",
+      "voltage_v",
+      "power_w",
+      "capacity",
+      "included",
+      "weight_g",
+      "standard"
+    ],
+    "fasteners": [
+      "diameter_mm",
+      "length_mm",
+      "thread",
+      "material",
+      "coating",
+      "strength_class",
+      "standard"
+    ],
+    "plumbing": [
+      "diameter_mm",
+      "nominal_size",
+      "connection_type",
+      "material",
+      "seal_material",
+      "pressure_class",
+      "temperature_range",
+      "application",
+      "standard"
+    ],
+    "fluid": [
+      "diameter_mm",
+      "nominal_size",
+      "connection_type",
+      "material",
+      "pressure_class",
+      "temperature_range",
+      "application",
+      "standard"
+    ],
+    "electrical": [
+      "voltage_v",
+      "current_a",
+      "power_w",
+      "ip_rating",
+      "connection_type",
+      "standard"
+    ],
+    "building": [
+      "thickness_mm",
+      "width_mm",
+      "length_mm",
+      "material",
+      "strength_class",
+      "treatment",
+      "standard"
+    ]
+  }
 }

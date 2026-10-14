@@ -23,6 +23,7 @@ def full_pass(root,stop,selected=None):
                 rounds[key]+=1;state['batches']+=1
                 count=state['counts'].setdefault(key,{'new_products':0,'changed_products':0,'batches':0})
                 count['batches']+=1
+                count['scanned']=count.get('scanned',0)+after.get('checked_this_run',0)
                 for field in ('new_products','changed_products'):count[field]+=result.get('runtime',{}).get(key,{}).get(field,0)
                 if after['status'] in ('error','blocked','not_connected'):
                     state['failed'][key]=after.get('error',after.get('scope','Tenging ólokið'))

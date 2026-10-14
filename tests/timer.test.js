@@ -1,0 +1,11 @@
+const vm=require('vm'),fs=require('fs'),assert=require('assert/strict');
+const source=fs.readFileSync(require('path').join(__dirname,'../static/chat-progress.js'),'utf8').split('function renderImportProgress')[0];
+const ctx=vm.createContext({Date});vm.runInContext(source,ctx);
+const timer=(runtime,phase='running')=>ctx.supplierTimer(runtime,phase,null,false);
+const now=Date.now(),r={started_at:new Date(now-10000).toISOString(),updated_at:new Date(now).toISOString(),work_done:5,work_total:10};
+assert(timer(r).includes('áætlað eftir í lotu'));
+assert(timer({...r,work_done:1}).includes('tími eftir óþekktur'));
+assert(timer(r,'blocked').includes('ekkert í niðurhali'));
+assert(timer(r,'queued').includes('upphafstími óþekktur'));
+assert(timer({...r,updated_at:new Date(now-70000).toISOString()}).includes('áætlun óviss'));
+console.log('Supplier timer passed: measured ETA, insufficient samples, blocked, queued and stale progress.');

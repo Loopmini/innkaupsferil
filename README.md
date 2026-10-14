@@ -311,3 +311,49 @@ Enginn sendingarhnappur eða tölvupóststenging er virk; notandi sækir skjali�
 81 Python-próf og 5 Node-prófasöfn: vistun/enduropnun í nýju ferli, endurtekinn innflutningur, örugg afturköllun, skemmd afrit, svör á sömu línu, pakkningar, MOQ, óþekkt gjöld, handvirkt val, afhending, flokkun og leit. DOM-próf ná yfir spjall/framvindu og leið frá innkaupadrögum yfir í vistaðan lista/birgjaval. Engin raunveruleg pöntun, sending eða API-kall var gert.
 
 Nýju eiginleikarnir fylla ekki upp vantaðar birgjaupplýsingar. Timbur/málmar og aðrir tómir flokkar bíða staðfestra vörufærslna. Pakkningar, VSK, flutningur, MOQ og afhending þurfa staðfestar heimildir áður en viðkomandi tilboð fær fulla heildartölu.
+
+
+## Innlestrartími og hraðskoðun úrvals · v0.11
+
+Undir Innlestrarvakt → Staða hvers birgis er nú tími liðinn í virkri lotu og áætlaður tími eftir í lotu, eftir að minnst þrjár mælingareiningar hafa lokið. Fyrir síðukort í heildarlestri er einnig gróf áætlun fyrir birginn miðað við fjölda slóða og hraða. Hún útilokar bið eftir öðrum birgjum og er ekki afhendingarloforð. Við langt hlé er áætlunin merkt óviss; fyrir bið, lokaðan aðgang eða óþekkta heild birtist engin tilbúin niðurtalning. Smáar API-lotur geta klárast áður en nægar mælingar fást. Staðan endurnýjast á þriggja sekúndna fresti.
+
+Hnappurinn **Hraðskoða breytingar á úrvali** sækir aðeins síðukort fyrir Húsasmiðjuna, Rúbix, Ísfell, Barka og Würth. Hann ber saman heilar slóðaskrár og sýnir fjölda nýrra slóða og slóða sem vantar frá fyrri mælingu. Fyrsta skoðun býr til viðmið. Engin vörusíða er sótt í þessum ham og verð endurnýjast ekki. Aðrir birgjar eru merktir sem óstuddir í hraðskoðun og ekki kallaðir á netinu. Ískraft-tengingin er því áfram ófullgerð.
+
+Slóð sem vantar er ekki sönnun þess að vara sé hætt: síða getur hafa verið færð eða síðukort breyst. Vöruspjöldum er ekki eytt við hraðskoðun. Tómt eða gallað síðukort varðveitir fyrri viðmiðun. Viðmiðin eru geymd í data/market-index.json, fylgja afritum og eru ekki sett á GitHub. Venjulegur síðukortainnlestur uppfærir sömu viðmið; mismunurinn miðast við síðustu vel heppnuðu skoðun, ekki heila dags-/árssögu.
+
+Fljótari staðfest leið að verðbreytingum væri opinbert vöru-API eða verðskrá frá birgi. Síðukort getur fljótt sýnt breytingu á slóðum en segir eitt og sér ekki hvort verð, lager eða tæknilýsing hafi breyst. Aðgangstakmarkanir og biðreglur birgja eru áfram virtar.
+
+Windows WinError 32 viðgerðin fylgir. Prófanir bæta við samanburði slóðaskráa án vörusíðukalla, varðveislu gagna við horfnar slóðir/tómt síðukort, óstuddum birgjum og tímamati við litlar mælingar, aðgangshöfnun og stöðnun.
+
+## Birgjaskrá, tengiliðir og könnun vöruskrár · v0.12
+
+Opnaðu **Birgjar → Bæta við birgja**. Skrá má nafn, HTTPS-vefslóð, heimilisfang, póstnúmer, bæ/borg, land, kennitölu/fyrirtækjanúmer, síma, netfang og athugasemdir. Kennitala er geymd eins og hún er skráð, ekki sannreynd gagnvart fyrirtækjaskrá. Bæta má allt að 50 tengiliðum við birgi; hver hefur nafn, hlutverk, síma, netfang og athugasemdir. Upplýsingar eru handskráðar og engin óþekkt gildi fyllt með ágiskun.
+
+Núverandi birgjar birtast í sama yfirliti. „Upplýsingar og tengiliðir“ opnar breytingar. Birgjar með sama nafni eða sama hýsli eru ekki stofnaðir aftur; notandi fær skýr skilaboð. Ef birgjaheiti er breytt helst upprunalegt heiti sem tenging við núverandi vörufærslur. Vistun skiptir ekki um vöruauðkenni eða innlestrartengingar. Tengilið er fjarlægt úr eyðublaði og síðan þarf að vista breytinguna.
+
+**Kanna vöruskrá** er sérstök aðgerð eftir vistun slóðar. Hún skoðar robots.txt, upphafssíðu, eitt síðukort og opinbert WooCommerce-vöruviðmót með einu vörudæmi. Hún getur sýnt síðukort, API eða skjalatengla (CSV/Excel/XML/PDF). Skjalatengill einn staðfestir ekki að skjalið sé vöruskrá. Kannanir eru vistaðar með heimild og tíma; breytt slóð hreinsar fyrri könnun. Vefkönnun lokar ekki annarri vinnu í viðmótinu.
+
+Þetta er afmörkuð greining, ekki almenn tengivél sem getur flutt inn af hvaða vef sem er. Nýr birgir er ekki sjálfkrafa settur í innlestrarröðina. Raunveruleg tenging þarf enn prófun á vöruauðkennum, síðum, verði, VSK og einingum. Eldri sértengingar haldast. Fundinn tengill og niðurstaða hjálpa við næstu útfærslu eða við að fá verðskrá frá birgi.
+
+Könnun virðir aðgangsreglur og hættir á HTTP 401/403/429. Aðeins HTTPS á opinber netföng; innri net, localhost, innskráningarupplýsingar í slóð og tilvísanir á annað lén eru útilokuð. Ef vefur vísar á annað lén þarf að skrá lokaslóðina. Svör eru takmörkuð við 2 MB og netbið 8 sekúndur á aðgerð; stór síðukort geta þurft sértengingu. Engar tengiliðaupplýsingar eru sendar á birgjavefinn eða til AI, og enginn tölvupóstur er sendur.
+
+Birgjaskráin er í supplier_profiles-töflu sama SQLite-grunns og fylgir því núverandi afritun/endurheimt. Prófað: vistun, breytingar, tenging eldri birgja, tvítekningar, afrit/endurheimt, aðgangshöfnun, robots-reglur, höfnun einkanetfanga og viðmótsleiðin frá skráningu að könnun. Netprófanir nota hermd svör; virkni á hverjum nýjum birgjavef kemur í ljós við könnun hjá notanda.
+
+
+## Vörufjölskyldur → útfærslur → birgjatilboð · v0.13
+
+Aðalsýn sýnir nú eitt spjald á vörutegund í **sömu** taxonomy.json-flokkun og áður. Enginn annar flokkunargrunnur eða afrit vörugagna er stofnaður. Fjölskylduspjald sýnir dæmismynd úr úrvalinu, lýsingu þar sem hún hefur verið skilgreind, fjölda aðskildra vara/útfærslna, birgja og birgjafærslna. Opnun sýnir undirspjöld og samanburðartöflu. Ótilgreindar tegundir haldast í merktum yfirferðarhópum.
+
+Klaufhamrar, gúmmíhamrar, sleggjur, kúluhamrar og slaghamrar hafa aðskildar vörutegundir undir Verkfæri og fylgihlutir → Handverkfæri. Kúluhamrar bíða gagna ef engar slíkar vörur eru skráðar. Hamarhulstur, hamarslykkjur, heftibyssur og blandaðir birgjaflokkar á borð við „Hamrar, sagir og kúbein“ eru ekki sjálfkrafa hamrar. Skrúfjárn, tilteknir lyklar, tangir og hnífar fá einnig nánari vörutegundir þegar vöruheiti styður það. Fyrri handvirkt staðfest flokkun hefur áfram forgang.
+
+Tæknisvið eru mismunandi eftir vörutegund: meðal annars þyngd hauss, skaft/grip, gengja/húðun, tengingar/þéttiefni/hitastig, spenna/straumur/afl/IP-vörn og rafhlöðukerfi/innihald. Gildi koma aðeins úr studdum, skýrt merktum gögnum eða handvirkri skráningu. Heildarþyngd hamars verður ekki sjálfkrafa þyngd hauss. Vottanir og takmarkanir eru óskráðar þar til heimild er til. Gagnablaðatenglar haldast á vöruspjaldi; PDF-innihald er ekki lesið sjálfvirkt.
+
+Sameining birgjatilboða krefst gilds GTIN/EAN með vartölu, framleiðanda+framleiðandanúmers eða sama birgis+vörunúmers. Ólíkt birgjanúmer er aldrei sameiginlegt auðkenni milli birgja. Tæknilegir árekstrar, ólík staðfest vörutegund eða ólík mál/útfærslumerki í heitum hindra sameiningu. Svipað heiti eitt nægir ekki. Vörufjölskylda staðfestir ekki staðgöngu: merkingarnar „Sama vara“, „Mögulegur staðgengill“ og „Þarf tæknilega staðfestingu“ haldast aðskildar.
+
+Þetta er sameiginleg sýn, ekki eyðing eða samruni gagnagrunnslína. Á vöruspjaldi má velja **Halda þessari færslu aðskildri frá öðrum birgjatilboðum** og vista. Hægt er að taka hakið af aftur. Stillingin fylgir sama vöruauðkenni við endurtekinn innlestur. Allar upprunalegar vörulýsingar og vörunúmer haldast leitartæk. Nákvæm leit eftir birgjanúmeri, MPN eða EAN finnur viðkomandi útfærslur þvert á flokkasíur; sama birgjanúmer getur átt við fleiri en einn birgi og þá sjást allir viðeigandi kostir.
+
+BOM tekur áfram ákveðna vörufærslu, birgja og magn. Ekki er hægt að panta heila fjölskyldu sem eina vöru. Vöruspjald sýnir birgjanúmer sem tengil, verðgrunn, pakkningu, lágmarksmagn, afhendingu og heimild. Lægsta samanburðarhæfa einingarverð á sömu vöru er sýnt sérstaklega. Fjölskylduverðbil er aðskilið eftir gjaldmiðli, sölueiningu og verðheimild, alltaf án VSK þegar staðfest netverð/pakkning liggur fyrir. Almennt vefverð, BOM-tilboð og innlesið verð eru merkt sérstaklega; samningsverð First Water er aðeins merkt sem slíkt ef gögn hafa þá skýru verðmerkingu. Samningsstaða venjulegs innflutnings er annars óskráð. Óþekkt eða úrelt verð fer ekki í verðbil. Afslættir, MOQ og flutningur eru reiknuð í BOM en ekki falin í einföldu verðbili fjölskyldu.
+
+**Yfirferð alls vörusafns** sýnir aðskildar talningar á fjölskyldum, vörum/útfærslum og birgjafærslum, einnig eftir birgja. Yfirferðarlisti hefur ástæður og beinan aðgang að viðkomandi færslu; allar athugasemdir má sækja sem CSV. Nýjar skrár fylgja sömu reglum. Innlestrarvakt birtir þessar þrjár talningar úr síðast hlöðnum grunni aðskildar frá vefslóðafjölda. Breytt framsetning er því ekki túlkuð sem brottfall vara úr síðukorti. Talning aðskildra vara er ekki sönnun þess að allar séu ólíkar: gögn sem vantar sameiginleg auðkenni geta enn falið tvítekningar.
+
+Prófanir ná yfir þrepin fjölskylda/útfærsla/tilboð, ólíka birgja með sama SKU, EAN-vartölu, árekstra í stærð/þyngd/ljósmagni, afturkræfa aðgreiningu, verðgrunn, talningar, sértækar hamragerðir og að fylgihlutir flokkist ekki sem hamrar. Allt fyrirliggjandi einkasafn var keyrt í gegnum reglurnar og viðmótspróf. Þetta er rekjanleg vélræn yfirferð, ekki tæknileg handstaðfesting hverrar vöru.

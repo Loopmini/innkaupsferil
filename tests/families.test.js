@@ -1,0 +1,20 @@
+const assert=require('assert/strict'),S=require('../static/search.js'),F=require('../static/families.js');
+const now=new Date().toISOString();
+const base={id:1,name:'Klaufhamar 500g',gtin:'4006381333931',supplier:'A',sku:'A1',source_kind:'market',classification:{id:'tools.hand.claw_hammers',path:['Verkfæri','Handverkfæri','Klaufhamrar'],needs_review:false},specifications:{head_weight_g:500},net_price:100,price:124,pack_quantity:1,unit:'stk',currency:'ISK',observed_at:now};
+const b={...base,id:2,supplier:'B',sku:'B1',net_price:180,pack_quantity:2};
+const c={...base,id:3,gtin:'',sku:'A2',name:'Klaufhamar 600g',specifications:{head_weight_g:600}};
+assert(S.validGTIN(base.gtin));assert(!S.validGTIN('1234567890123'));
+assert.equal(F.families([base,b,c]).length,1);assert.equal(F.families([base,b,c])[0].products.length,2);
+assert.equal(F.priceGroups([base,b])[0].min,90);
+assert.equal(F.priceGroups([{...base,net_price:null}]).length,0);
+assert.equal(F.priceGroups([base,{...b,unit:'m'}]).length,2);
+assert(!S.same(base,{...b,specifications:{head_weight_g:600}}));
+assert(!S.same(base,{...b,name:'Klaufhamar 600g'}));
+assert.equal(S.grouped([base,{...b,product_enrichment:{keep_separate:true}}]).length,2);
+assert.equal(S.grouped([{...base,gtin:'',sku:'SAME'},{...b,gtin:'',sku:'SAME'}]).length,2);
+assert(S.matches(base,'klaufhamri'));assert(S.matches(base,'A1'));
+const audit=F.audit([base,b,c]);assert.equal(audit.records,3);assert.equal(audit.products,2);assert.equal(audit.families,1);assert.equal(audit.combinedRecords,1);assert.equal(audit.supplierCounts.length,2);
+assert(F.audit([base,{...b,name:'Klaufhamar 600g'}]).review.some(r=>r.reason.includes('ósamræmi')));
+console.log('Families passed: taxonomy grouping, exact products, conflicting variants, supplier SKUs, separation, normalized price bases and independent counts.');
+
+assert(!S.same({...base,name:'Vasaljós 1000 lumens'}, {...b,name:'Vasaljós 1500 lumens'}));
