@@ -20,6 +20,7 @@ import data_safety
 import import_manager
 import procurement
 import supplier_registry
+import assistant_reader
 DATA_LOCK = threading.RLock()
 
 ROOT = Path(__file__).parent
@@ -288,12 +289,20 @@ class Handler(BaseHTTPRequestHandler):
     def get_response(self):
         path = urlsplit(self.path).path
         if path == '/api/supplier-profiles':return self.send(supplier_registry.listing(__import__(__name__)))
+        if path == '/api/supplier-imports':
+            name=parse_qs(urlsplit(self.path).query).get('name',[''])[0]
+            with connect() as db:
+                rows=[{'id':r['id'],'source':r['source'],'created_at':r['created_at'],'status':r['status']} for r in db.execute("SELECT * FROM import_batches WHERE status<>'preview' ORDER BY created_at DESC") if any(o.get('supplier')==name for o in json.loads(r['rows_json']))]
+            return self.send(rows[:100])
         if path == '/api/backups':return self.send(data_safety.listing(ROOT))
         if path == '/api/backup-download':
             name=parse_qs(urlsplit(self.path).query).get('name',[''])[0]
             return self.send(data_safety.path(ROOT,name).read_bytes(),content_type='application/zip')
+        if path == '/api/import-pending':
+            token=parse_qs(urlsplit(self.path).query).get('token',[''])[0]
+            return self.send(import_manager.pending(__import__(__name__),token))
         if path == '/api/import-history':
-            with connect() as db:rows=[dict(r) for r in db.execute("SELECT id,created_at,source,status FROM import_batches WHERE status<>'preview' ORDER BY created_at DESC LIMIT 100")]
+            with connect() as db:rows=[dict(r) for r in db.execute("SELECT id,created_at,source,status FROM import_batches ORDER BY created_at DESC LIMIT 100")]
             with connect() as db:
                 for r in db.execute("SELECT * FROM staged_documents WHERE status IN ('committed','undone') ORDER BY created_at DESC LIMIT 100"):
                     value=json.loads(r['data']);rows.append({'id':r['id'],'created_at':r['created_at'],'source':value.get('source',value.get('name','Skjal')),'status':r['status'],'kind':r['kind']})
@@ -332,7 +341,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(catalogue())
         if path == '/api/template':
             return self.send((','.join(FIELDS) + '\n').encode(), content_type='text/csv; charset=utf-8')
-        files = {'/families.js': ('families.js','text/javascript'), '/family-ui.js': ('family-ui.js','text/javascript'), '/supplier-ui.js': ('supplier-ui.js','text/javascript'), '/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/workspace-ui.js': ('workspace-ui.js','text/javascript'), '/families.js': ('families.js','text/javascript'), '/family-ui.js': ('family-ui.js','text/javascript'), '/supplier-ui.js': ('supplier-ui.js','text/javascript'), '/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
         if path in files:
             name, kind = files[path]
             return self.send((ROOT / 'static' / name).read_bytes(), content_type=kind + '; charset=utf-8')
@@ -364,8 +373,8 @@ class Handler(BaseHTTPRequestHandler):
                 if data.get('confirm')!=data.get('name') or not data.get('name'):raise ValueError('Staðfestingu endurheimtar vantar.')
                 return self.send(data_safety.restore(ROOT,DB,data['name']))
             if self.path == '/api/import-preview':
-                return self.send(import_manager.preview(__import__(__name__),str(data.get('csv','')),data.get('source')))
-            if self.path == '/api/import-commit':return self.send(import_manager.commit(__import__(__name__),data.get('token')))
+                return self.send(import_manager.preview(__import__(__name__),str(data.get('csv','')),data.get('source'),data.get('supplier')))
+            if self.path == '/api/import-commit':return self.send(import_manager.commit(__import__(__name__),data.get('token'),data.get('selected')))
             if self.path == '/api/import-undo':return self.send(import_manager.undo(__import__(__name__),data.get('id')))
             if self.path == '/api/document-undo':return self.send(procurement.undo_document(__import__(__name__),data.get('id')))
             if self.path == '/api/rfq-preview':return self.send(procurement.parse_replies(__import__(__name__),int(data['id']),str(data.get('csv','')),str(data.get('source','Tilboð'))))
@@ -430,7 +439,10 @@ class Handler(BaseHTTPRequestHandler):
                         (json.dumps(rows,ensure_ascii=False),json.dumps(selections),bid))
                 return self.send({'id':bid,'line_id':lid})
             if self.path == '/api/ai-chat':
-                return self.send(ai_support.chat(data.get('message'),data.get('history',[]),catalogue()['offers']))
+                with DATA_LOCK:
+                    offers=catalogue()['offers']
+                    context,preferred=assistant_reader.context(DB,data.get('context',{}),offers)
+                return self.send(ai_support.chat(data.get('message'),data.get('history',[]),offers,context,preferred))
             if self.path == '/api/ai-review':
                 offer = next((o for o in catalogue()['offers'] if o['id'] == int(data['id'])), None)
                 if not offer:raise ValueError('Vara fannst ekki.')

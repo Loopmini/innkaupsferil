@@ -357,3 +357,26 @@ BOM tekur áfram ákveðna vörufærslu, birgja og magn. Ekki er hægt að panta
 **Yfirferð alls vörusafns** sýnir aðskildar talningar á fjölskyldum, vörum/útfærslum og birgjafærslum, einnig eftir birgja. Yfirferðarlisti hefur ástæður og beinan aðgang að viðkomandi færslu; allar athugasemdir má sækja sem CSV. Nýjar skrár fylgja sömu reglum. Innlestrarvakt birtir þessar þrjár talningar úr síðast hlöðnum grunni aðskildar frá vefslóðafjölda. Breytt framsetning er því ekki túlkuð sem brottfall vara úr síðukorti. Talning aðskildra vara er ekki sönnun þess að allar séu ólíkar: gögn sem vantar sameiginleg auðkenni geta enn falið tvítekningar.
 
 Prófanir ná yfir þrepin fjölskylda/útfærsla/tilboð, ólíka birgja með sama SKU, EAN-vartölu, árekstra í stærð/þyngd/ljósmagni, afturkræfa aðgreiningu, verðgrunn, talningar, sértækar hamragerðir og að fylgihlutir flokkist ekki sem hamrar. Allt fyrirliggjandi einkasafn var keyrt í gegnum reglurnar og viðmótspróf. Þetta er rekjanleg vélræn yfirferð, ekki tæknileg handstaðfesting hverrar vöru.
+
+## Samræmd vinnusvæði · v0.14
+
+Þessi útgáfa innleiðir fyrsta afhendingaráfanga samþykktrar viðmóts- og aðstoðartillögu. Gögn eru ekki flutt milli taflna eða eydd.
+
+- **Vörur:** leit efst, virkur innkaupalisti, smellanlegur flokkunarstígur, fleiri síur saman og spjalda-/töflusýn. Kerfisumsjón er undir Gagnaumsjón. Vörufjölskyldur og nákvæm útfærsla/tilboð halda fyrri auðkenna- og verðreglum.
+- **Vöruspjald:** lítil mynd og innkaupaaðgerð efst; Útfærslur og birgjar, Tæknigögn, Saga og heimildir. Breyta/yfirfara opnar eldri ritunarvirkni í sérstakri sýn. Heimildir, gagnablöð, afturkræf aðgreining og AI-tillögur haldast.
+- **Birgjar:** leit og tafla sjálfgefið, valfrjáls spjöld. Birgjaspjald hefur yfirlit, vörur, verðlista/gögn og uppfærslur. Vörur opna sameiginlega leit, innlestur opnar sama verðlistaferli með forvöldum birgi og uppfærsla velur núverandi tengingu. Ótengdur birgir fær skýr skilaboð.
+- **Gagnaumsjón:** skjöl, vefuppfærslur, gagnagæði, saga/afrit og stillingar. Verðlista-CSV hafnar ósamræmi milli birgis í skjali og forvals. Forskoðun leyfir val einstakra lína; óvaldar línur vistast sem óstaðfest drög og má opna aftur úr sögunni. Grunngögn eru endursannreynd við staðfestingu. Afturköllun nær aðeins til staðfestra lína.
+- **Innkaupalistar:** BOM og eldri verkefnalistar aðgengilegir á sama vinnusvæði. Eldri verkefnalistar halda pakkningamagni og auðkennum. Innkaupadrög má staðfesta á nýjan eða núverandi BOM-lista. Kröfur fyrri lína og listastillingar haldast. Óþekkt verðgrunnur eldri lista birtist ekki lengur sem núll.
+- **Njörður:** hliðarspjald með sýnilegu og breytanlegu samhengi. Valin vara eða fyrstu 40 línur valins BOM geta fylgt fyrirspurn. Vörunúmer eru sannreynd gagnvart gögnunum. BOM-lesari notar SQLite mode=ro, query_only og aðgerðatakmörkun; líkanið fær aðeins JSON, engin SQL-, skriftar- eða staðfestingarverkfæri. Engin lifandi API-köll eru gerð í prófunum. Fyrri API-lykill og stillingar haldast.
+
+Síðasta tilraun og síðasta árangursríka vörusöfnun eru nú skráð aðskilið frá þessari útgáfu. Eldri skrár sem vantar árangurstíma sýna Óskráð. Hraðskoðun síðukorts verður ekki merkt sem árangursrík verð-/vörusöfnun.
+
+### Prófað og enn ólokið
+
+98 Python-próf: m.a. valdar innflutningslínur, enduropnun biðlína, höfnun endurtekinnar staðfestingar, birgjamisræmi, afturköllun, viðbót á núverandi lista og lesaðgangsvörn. Node-prófasöfn fyrir vöruleit, fjölskyldur, flokkun, BOM, gjöld og tímamat. DOM-próf með fullu fyrirliggjandi safni nær yfir vinnusvæði, vöruflipa, opnun/lokun og enduropnun birgis, virkan lista og spjallsamhengi. Ekki prófað í raunverulegum Windows-vafra; sjónræn úttekt á mismunandi skjástærðum er enn eftir.
+
+Ekki telja alla spjallmennistillöguna afhenta í v0.14: PDF-/myndaútdráttur, frjáls greining skjala í spjalli, lesleit um öll söguleg gagnasöfn, aðgangshópar, sérstakt einangrað vinnslusvæði og varðveislutími draga bíða síðari áfanga. Skjalhnappar í spjalli opna núverandi sameiginlegt forskoðunarferli; spjallið flytur ekkert inn sjálft. Núverandi app er staðbundið fyrir einn eiganda og á ekki að kynna sem prófaða fjölnotendaþjónustu. Óstaðfest verðlistadrög eru enn geymd í núverandi import_batches-töflu, ekki nýju einangruðu skjalasafni. Ákvörðunarsaga geymir innflutningsauðkenni/heimild/tíma, en ekki auðkenndan fjölnotendasamþykkjanda.
+
+Eldri verkefnalistar og BOM eru varðveitt sér í gagnaskipan; þeir hafa sameiginlegan inngang en ekki fulla umbreytingu milli gerða. Samanburður/RFQ er fyrir BOM-lista. Engin sjálfvirk pöntun eða skilaboðasending. Vefuppfærslur halda núverandi samþykktri sjálfvirkni; forskoðun á hverri vefbreytingu er ekki ný virkni. Talning heildarlestrar telur enn breytingaatburði milli lota og er merkt sem slík; einstakar breyttar vörur yfir margar lotur eru ekki enn sér talning.
+
+Uppfærsla: stöðvaðu forritið, taktu afrit af núverandi forritsmöppu og afrit úr Gagnaumsjón. Afritaðu innihald Innkaupsferil-möppunnar úr uppfærslupakkanum yfir núverandi forrit. Pakkinn inniheldur hvorki data/ né .env. Keyrðu Starta-Windows.bat og ýttu á Ctrl+F5. Keyrðu ekki uppfærslupakkann sem nýja tóma uppsetningu.

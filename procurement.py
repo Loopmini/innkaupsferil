@@ -103,12 +103,24 @@ def draft(app,data):
                    supplier='' if has_global else offer.get('supplier',''),sku='' if has_global else offer.get('sku',''),specifications=offer.get('specifications',{}))
         rows.append(row);selections[lid]=[offer['id']]
     name=string(data.get('name',''),120)
-    if not name:raise ValueError('Heiti lista vantar.')
+    if not name and not data.get('target_id'):raise ValueError('Heiti lista vantar.')
     settings=validate_settings(data.get('settings',{}))
     with app.connect() as db:
-        bid=db.execute('INSERT INTO bom_lists(name,created_at,rows_json,selections_json,sheet) VALUES(?,?,?,?,?)',
-            (name,datetime.now(timezone.utc).isoformat(),json.dumps(rows,ensure_ascii=False),json.dumps(selections),'Yfirfarin innkaupadrög')).lastrowid
-        db.execute('INSERT INTO bom_settings VALUES(?,?)',(bid,json.dumps(settings)))
+        bid=int(data.get('target_id') or 0)
+        if bid:
+            db.execute('BEGIN IMMEDIATE')
+            old=db.execute('SELECT rows_json,selections_json FROM bom_lists WHERE id=?',(bid,)).fetchone()
+            if not old:raise ValueError('Valinn listi fannst ekki.')
+            existing=json.loads(old['rows_json']);accepted=json.loads(old['selections_json'])
+            if len(existing)+len(rows)>500:raise ValueError('Hámark 500 línur á lista.')
+            next_id=max((int(x['line_id']) for x in existing),default=0)
+            for i,row in enumerate(rows,1):
+                old_id=row['line_id'];row['line_id']=str(next_id+i);accepted[row['line_id']]=selections[old_id]
+            db.execute('UPDATE bom_lists SET rows_json=?,selections_json=? WHERE id=?',(json.dumps(existing+rows,ensure_ascii=False),json.dumps(accepted),bid))
+        else:
+            bid=db.execute('INSERT INTO bom_lists(name,created_at,rows_json,selections_json,sheet) VALUES(?,?,?,?,?)',
+                (name,datetime.now(timezone.utc).isoformat(),json.dumps(rows,ensure_ascii=False),json.dumps(selections),'Yfirfarin innkaupadrög')).lastrowid
+            db.execute('INSERT INTO bom_settings VALUES(?,?)',(bid,json.dumps(settings)))
     return {'id':bid,'rows':len(rows)}
 
 def stage(db,kind,value):

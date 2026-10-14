@@ -1519,6 +1519,18 @@
       "strength_class",
       "treatment",
       "standard"
+    ],
+    "tools.hand.pliers": [
+      "length_mm",
+      "material",
+      "grip",
+      "application"
+    ],
+    "tools.hand.screwdrivers": [
+      "length_mm",
+      "material",
+      "grip",
+      "application"
     ]
   }
 }
