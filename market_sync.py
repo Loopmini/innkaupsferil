@@ -137,8 +137,8 @@ def parse_thor(p):
  pack(r,r['name'])
  r['availability']='Til samkvæmt birgjaviðmóti' if p.get('is_in_stock') else 'Ekki á lager samkvæmt birgjaviðmóti'
  r['note']='Opinbert Store API. Verð nær til sölueiningar; pakkastærð og VSK eru ekki áætluð. '+('Afbrigðisvara; grunnverð ekki notað sem verð afbrigðis.' if p.get('type')=='variable' else '')
- from product_extras import image_url
- r['image_url']=next((u for img in p.get('images',[]) if isinstance(img,dict) and (u:=image_url(img.get('src','')))), '')
+ from product_extras import usable_image
+ r['image_url']=next((u for img in p.get('images',[]) if isinstance(img,dict) and (u:=usable_image(img.get('src','')))), '')
  from product_extras import page_details
  r['documents']=page_details((p.get('description') or '')+' '+(p.get('short_description') or ''),r['url'])['documents']
  r['description']=plain(p.get('short_description') or p.get('description'))[:8000]

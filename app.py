@@ -167,7 +167,7 @@ def read_catalogue():
         extra.extend(procurement.reply_offers(db))
         images={r['offer_id']:r['url'] for r in db.execute('SELECT * FROM product_images')}
         details={r['offer_id']:json.loads(r['data']) for r in db.execute('SELECT * FROM product_details')}
-    from product_extras import image_url
+    from product_extras import usable_image
     for r in offers+extra:
         from product_extras import preserve_media
         cached=details.get(r['id'],{})
@@ -176,7 +176,7 @@ def read_catalogue():
         else:
             r.update(preserve_media(r,cached))
         r['manual_category']=overrides.get(r['id'],'')
-        r['image_url']=image_url(r.get('image_url') or images.get(r['id'],''))
+        r['image_url']=usable_image(r.get('image_url') or images.get(r['id'],''))
         if r['id'] in terms:r['terms']=terms[r['id']]
         taxonomy.enrich(r,enrichments.get(r['id'],{}))
     with connect() as db:metadata['relation_index']=[dict(r) for r in db.execute('SELECT a,b,kind FROM product_relations')]
