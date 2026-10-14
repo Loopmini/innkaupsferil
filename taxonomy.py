@@ -6,7 +6,7 @@ import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-TREE = json.loads((ROOT/'seeds/taxonomy.json').read_text())
+TREE = json.loads((ROOT/'seeds/taxonomy.json').read_text(encoding='utf-8'))
 LEAVES = {}
 for top in TREE['groups']:
     for sub in top['children']:
@@ -31,7 +31,7 @@ LEGACY = {
  'Leikföng og módel':'toys.toys.toys','Hreinlætistæki og baðbúnaður':'plumbing.sanitary.sanitary',
  'Stigar og vinnupallar':'tools.access.access','Annað og óflokkað':UNKNOWN}
 # Legacy name rules preserve coverage while canonical IDs eliminate duplicate categories.
-OLD_RULES = json.loads((ROOT/'seeds/legacy-category-rules.json').read_text())
+OLD_RULES = json.loads((ROOT/'seeds/legacy-category-rules.json').read_text(encoding='utf-8'))
 
 
 def norm(v):
