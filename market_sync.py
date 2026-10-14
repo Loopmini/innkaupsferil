@@ -11,7 +11,7 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 from urllib.error import HTTPError
-from urllib.parse import urlsplit, urljoin
+from urllib.parse import urlsplit, urljoin, quote
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from urllib.robotparser import RobotFileParser
 import xml.etree.ElementTree as ET
@@ -20,6 +20,9 @@ ROOT=Path(__file__).parent
 AGENT='Innkaupsferil/0.3 (public catalogue reader)'
 HOSTS={'thor.is','www.husa.is','byko.is','www.sindri.is','www.fossberg.is','www.isol.is'}
 SOURCES={'thor':('Þór hf.','https://thor.is'),'husa':('Húsasmiðjan','https://www.husa.is'),'byko':('BYKO','https://byko.is'),'sindri':('Sindri','https://www.sindri.is'),'fossberg':('Fossberg','https://www.fossberg.is'),'isol':('Ísól','https://www.isol.is')}
+
+SOURCES.update({'rubix':('Rúbix','https://rubix.is'),'vatnsvirkinn':('Vatnsvirkinn','https://vatnsvirkinn.is'),'vatnogveitur':('Vatn og veitur','https://www.vatnogveitur.is'),'ronning':('Röning','https://www.ronning.is'),'iskraft':('Ískraft','https://iskraft.husa.is'),'reykjafell':('Reykjafell','https://www.reykjafell.is'),'hampidjan':('Hampiðjan','https://verslun.hampidjan.is'),'isfell':('Ísfell','https://isfell.is'),'landvelar':('Landvélar','https://landvelar.is'),'barki':('Barki','https://www.barki.is'),'wurth':('Würth','https://wurth.is')})
+HOSTS.update(urlsplit(origin).hostname for _,origin in SOURCES.values())
 
 def now():return datetime.now(timezone.utc).isoformat()
 def plain(s):return re.sub(r'\s+',' ',html.unescape(re.sub('<[^>]+>',' ',str(s or '')))).strip()
@@ -77,13 +80,17 @@ class Client:
   if p.scheme!='https' or p.hostname not in HOSTS or p.hostname!=urlsplit(self.origin).hostname or p.port not in (None,443) or p.username or p.password:raise ValueError('Unapproved URL')
   time.sleep(max(0,self.delay-(time.monotonic()-self.last)))
   self.last=time.monotonic()
-  with build_opener(Redirect()).open(Request(url,headers={'User-Agent':AGENT,'Accept-Encoding':'identity'}),timeout=30) as response:
+  encoded=quote(url,safe=":/?&=%#@!$'()*+,;[]~")
+  with build_opener(Redirect()).open(Request(encoded,headers={'User-Agent':AGENT,'Accept-Encoding':'identity'}),timeout=30) as response:
    body=response.read(limit+1)
    if len(body)>limit:raise ValueError('Response limit exceeded')
    return body.decode('utf-8',errors='replace'),dict(response.headers)
  def get(self,url,limit=15000000):
   if self.robot and not self.robot.can_fetch(AGENT,url):raise ValueError('robots.txt disallows URL')
-  return self.raw(url,limit)
+  try:return self.raw(url,limit)
+  except HTTPError as e:
+   if e.code not in (502,503,504):raise
+   return self.raw(url,limit)
 
 def base(key,supplier,name,url,sku='',category='',subcategory=''):
  return dict(key=key,supplier=supplier,name=plain(name),url=url,sku=str(sku or ''),category=category,subcategory=subcategory,brand='',price=None,currency='ISK',vat_included=None,vat_rate=None,pack_quantity=None,unit='',observed_at=now(),availability='Lagerstaða óstaðfest',price_status='Verð vantar',note='',collector='v0.3')
@@ -194,6 +201,8 @@ def run(root=ROOT,husa_limit=100,selected=None):
    c=Client(origin)
    if key=='thor':return key,thor(c,previous,statuses.get(key,{}),lambda i:progress(key,i))
    if key=='husa':return key,husa(c,previous,statuses.get(key,{}),lambda i:progress(key,i),husa_limit)
+   from supplier_catalogues import DIRECTORIES, collect
+   if key in DIRECTORIES or key=='landvelar':return key,collect(key,supplier,c,previous,statuses.get(key,{}),lambda i:progress(key,i))
    return key,(previous,dict(status='not_connected',scope='Sérstök vörutenging ekki tilbúin',loaded=len(previous),checked_at=now()))
   except Exception as e:
    return key,(previous,{**statuses.get(key,{}),'status':'blocked' if isinstance(e,HTTPError) and e.code in (401,403,429) else 'error','error':str(e),'loaded':len(previous),'checked_at':now(),'scope':'Fyrri athuganir varðveittar; engin fersk uppfærsla'})

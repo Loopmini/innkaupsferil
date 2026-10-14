@@ -1,5 +1,7 @@
 """Local procurement catalogue. Python 3.11+, no external dependencies."""
 import csv
+import base64
+import binascii
 import io
 import json
 import math
@@ -35,7 +37,10 @@ def connect():
         id INTEGER PRIMARY KEY, name TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS items (
         project_id INTEGER, offer_id INTEGER, quantity REAL NOT NULL,
-        PRIMARY KEY(project_id, offer_id));''')
+        PRIMARY KEY(project_id, offer_id));
+        CREATE TABLE IF NOT EXISTS bom_lists (
+        id INTEGER PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL,
+        rows_json TEXT NOT NULL, selections_json TEXT NOT NULL DEFAULT '{}', sheet TEXT);''')
     return db
 
 def number(value, label, positive=False):
@@ -177,6 +182,19 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == '/api/boms':
+            with connect() as db:
+                rows=[dict(r) for r in db.execute('SELECT id,name,created_at,sheet FROM bom_lists ORDER BY id DESC')]
+            return self.send(rows)
+        if path == '/api/bom':
+            try:bid=int(parse_qs(urlsplit(self.path).query).get('id',['0'])[0])
+            except ValueError:return self.send({'error':'Ógilt BOM-auðkenni'},400)
+            with connect() as db:r=db.execute('SELECT * FROM bom_lists WHERE id=?',(bid,)).fetchone()
+            if not r:return self.send({'error':'BOM fannst ekki'},404)
+            value=dict(r);value['rows']=json.loads(value.pop('rows_json'));value['selections']=json.loads(value.pop('selections_json'))
+            return self.send(value)
+        if path == '/api/bom-template':
+            return self.send('heiti,magn,eining,birgir,vorunumer,gtin,framleidandi,mpn\n5mm stálbor,20,stk,,,,,\n'.encode('utf-8-sig'),content_type='text/csv; charset=utf-8')
         if path == '/api/market-history':
             key=parse_qs(urlsplit(self.path).query).get('key',[''])[0]
             dbpath=ROOT/'data/market-history.sqlite'
@@ -191,7 +209,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(catalogue())
         if path == '/api/template':
             return self.send((','.join(FIELDS) + '\n').encode(), content_type='text/csv; charset=utf-8')
-        files = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
         if path in files:
             name, kind = files[path]
             return self.send((ROOT / 'static' / name).read_bytes(), content_type=kind + '; charset=utf-8')
@@ -215,6 +233,27 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send({'started': start_sync()})
             if self.path == '/api/import':
                 return self.send({'imported': import_csv(str(data.get('csv', '')))})
+            if self.path == '/api/bom-import':
+                import bom
+                name=str(data.get('name','')).strip()
+                if not name or len(name)>120:raise ValueError('Heiti BOM þarf 1–120 stafi.')
+                filename=str(data.get('filename','bom.csv'))
+                content=base64.b64decode(data['base64'],validate=True) if 'base64' in data else str(data.get('text','')).encode()
+                if len(content)>3_000_000:raise ValueError('Hámark 3 MB fyrir BOM.')
+                rows,sheet=bom.parse(content,filename)
+                with connect() as db:
+                    cursor=db.execute('INSERT INTO bom_lists(name,created_at,rows_json,sheet) VALUES(?,?,?,?)',(name,datetime.now(timezone.utc).isoformat(),json.dumps(rows,ensure_ascii=False),sheet))
+                    bid=cursor.lastrowid
+                return self.send({'id':bid,'rows':len(rows),'sheet':sheet})
+            if self.path == '/api/bom-selection':
+                bid=int(data['id']);selections=data.get('selections',{})
+                with connect() as db:
+                    row=db.execute('SELECT rows_json FROM bom_lists WHERE id=?',(bid,)).fetchone()
+                    if not row:raise ValueError('BOM fannst ekki.')
+                    ids={r['line_id'] for r in json.loads(row[0])}
+                    if not isinstance(selections,dict) or any(k not in ids or not isinstance(v,list) or len(v)>1000 or any(not isinstance(x,int) for x in v) for k,v in selections.items()):raise ValueError('Ógilt vöruval.')
+                    db.execute('UPDATE bom_lists SET selections_json=? WHERE id=?',(json.dumps(selections),bid))
+                return self.send({'ok':True})
             with connect() as db:
                 if self.path == '/api/projects':
                     name = str(data.get('name', '')).strip()
@@ -238,7 +277,7 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     return self.send({'error': 'Fannst ekki'}, 404)
             self.send({'ok': True})
-        except (ValueError, KeyError, TypeError) as e:
+        except (ValueError, KeyError, TypeError, binascii.Error) as e:
             self.send({'error': str(e)}, 400)
 
 if __name__ == '__main__':

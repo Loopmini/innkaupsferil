@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict'),B=require('../static/bom-core.js'),G=require('../static/groups.js');
+const date=Date.parse('2026-10-14T12:00:00Z');
+const line={line_id:'1',name:'5mm stálbor',quantity:11,unit:'stk'};
+const offer=(id,supplier,pack,price,extra={})=>({id,supplier,sku:String(id),name:'Stálbor HSS 5mm',source_kind:'market',price,net_price:price,pack_quantity:pack,unit:'stk',currency:'ISK',observed_at:'2026-10-14',availability:'Til',...extra});
+const offers=[offer(1,'A',10,100),offer(2,'B',1,15),offer(3,'C',1,1,{net_price:null})];
+let q=B.quote([line],offers,{},'ISK',date);assert.equal(q.covered,0);assert.equal(q.lines[0].suggestion.offer.supplier,'B');
+q=B.quote([line],offers,{'1':[1,2,3]},'ISK',date);assert.equal(q.subtotal,165);assert.equal(q.complete,true);assert.equal(q.lines[0].best.packs,11);assert.equal(q.suppliers.find(s=>s.supplier==='C').complete,false);
+q=B.quote([line,{...line,line_id:'2',name:'Trébor 8mm'}],offers,{'1':[1,2]},'ISK',date);assert.equal(q.complete,false);assert.equal(q.subtotal,165);assert.equal(q.suppliers.some(s=>s.complete),false);
+for(const extra of [{unit:'m'},{pack_quantity:null},{net_price:null},{currency:'EUR'},{observed_at:'2025-01-01'},{availability:'Ekki á lager'}])assert.equal(B.cost(line,offer(1,'A',1,10,extra),'ISK',date).eligible,false);
+q=B.quote([{...line,supplier:'A',sku:'1'}],offers,{},'ISK',date);assert.equal(q.covered,1);assert.equal(q.subtotal,200);assert.equal(q.lines[0].best.excess,9);
+assert.equal(G.classify({name:'Bor 5mm HSS'}),'Borar og snittvörur');assert.equal(G.classify({name:'Borvél 18V'}),'Vélar og rafmagnsverkfæri');assert.equal(G.classify({name:'Lím epoxy'}),'Efnavörur og smurefni');assert.equal(G.classify({name:'Bolti M8'}),'Festingar og skrúfur');
+console.log('BOM checks passed: pack rounding, approval, incomplete baskets, missing prices, currency, units, freshness and categories');
