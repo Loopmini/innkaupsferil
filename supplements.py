@@ -20,6 +20,8 @@ def identifier(key):
 
 def read_supplements(root=ROOT):
     records, metadata = [], {}
+    connections=root / 'seeds/supplier-connections.json'
+    if connections.exists():metadata['connections']=json.loads(connections.read_text(encoding='utf-8'))
     combined = {}
     for public in [root / 'seeds/public-market.json', root / 'data/market-live.json']:
         if public.exists():

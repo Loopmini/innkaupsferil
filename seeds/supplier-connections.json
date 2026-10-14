@@ -1,0 +1,111 @@
+{
+  "checked_at": "2026-10-14",
+  "note": "Könnun, ekki staðfest loforð um API-aðgang. Þekja raunverulegrar söfnunar birtist sérstaklega.",
+  "suppliers": [
+    {
+      "key": "rubix",
+      "supplier": "Rúbix",
+      "url": "https://rubix.is/",
+      "finding": "Vöruskrá og opinber verð á vef. Tenging les aðalverðreit þegar verð er nákvæmt; frá-verð er ekki notað.",
+      "next_step": "Síðukort; Rubix-samstæðan býður PunchOut/EDI, en íslenskur aðgangur er óstaðfestur."
+    },
+    {
+      "key": "vatnsvirkinn",
+      "supplier": "Vatnsvirkinn",
+      "url": "https://vatnsvirkinn.is/",
+      "finding": "Vefurinn hleður gögnum með JavaScript; vörutenging ólokið.",
+      "next_step": "Óska eftir vöruskrá/CSV eða skjalfestu viðmóti."
+    },
+    {
+      "key": "vatnogveitur",
+      "supplier": "Vatn og veitur",
+      "url": "https://www.vatnogveitur.is/",
+      "finding": "Opinber vöruskrá; sjálfvirkur aðgangur fékk HTTP 403.",
+      "next_step": "Kanna sameiginlegan vörugagnaútflutning við Fagkaup."
+    },
+    {
+      "key": "ronning",
+      "supplier": "Röning",
+      "url": "https://www.ronning.is/",
+      "finding": "Opinber vöruskrá; sjálfvirkur aðgangur fékk HTTP 403.",
+      "next_step": "Kanna sameiginlegan vörugagnaútflutning við Fagkaup."
+    },
+    {
+      "key": "sindri",
+      "supplier": "Sindri",
+      "url": "https://www.sindri.is/",
+      "finding": "Opinber vefverslun; fyrri söfnun fékk HTTP 403.",
+      "next_step": "Kanna sameiginlegan vörugagnaútflutning við Fagkaup."
+    },
+    {
+      "key": "fossberg",
+      "supplier": "Fossberg",
+      "url": "https://www.fossberg.is/",
+      "finding": "Opinber vefverslun; fyrri söfnun fékk HTTP 403.",
+      "next_step": "Kanna sameiginlegan vörugagnaútflutning við Fagkaup."
+    },
+    {
+      "key": "iskraft",
+      "supplier": "Ískraft",
+      "url": "https://iskraft.husa.is/",
+      "finding": "Opinber vörunúmer og lýsingar; verð eru ekki innlesin.",
+      "next_step": "Ein staðfest vöruslóð; heildarvörutenging ólokið. Samningsverð þurfa aðgang eða verðlista."
+    },
+    {
+      "key": "reykjafell",
+      "supplier": "Reykjafell",
+      "url": "https://www.reykjafell.is/",
+      "finding": "Vörusíður eru útilokaðar frá sjálfvirkum lestri í robots.txt.",
+      "next_step": "Óska eftir vöruskrárútflutningi eða samþykktri gagnatengingu."
+    },
+    {
+      "key": "hampidjan",
+      "supplier": "Hampiðjan",
+      "url": "https://verslun.hampidjan.is/vorur",
+      "finding": "Opinber vöruskrá með vörunúmerum; innskráning til pöntunar.",
+      "next_step": "Vöruspjöld í lotum; verð ekki innlesin."
+    },
+    {
+      "key": "isfell",
+      "supplier": "Ísfell",
+      "url": "https://isfell.is/vorulistar/",
+      "finding": "Opinber vöruskrá og bæklingar; vörur má lesa án verðs.",
+      "next_step": "Síðukort einstakra vörusíðna; bæklingar ekki enn sundurliðaðir."
+    },
+    {
+      "key": "landvelar",
+      "supplier": "Landvélar",
+      "url": "https://landvelar.is/vorur/",
+      "finding": "Opinbert WooCommerce-vöruviðmót svarar. Núllverð eru ekki túlkuð sem ókeypis vörur.",
+      "next_step": "100 færslur í lotu; varðveitir lýsingu, vörunúmer og tengil."
+    },
+    {
+      "key": "barki",
+      "supplier": "Barki",
+      "url": "https://www.barki.is/",
+      "finding": "Opinberar vörufjölskyldur og tækniblöð. Verð ekki innlesin.",
+      "next_step": "Síðukort; ófullgerð fjölskylduvörunúmer eru ekki notuð sem pöntunarnúmer."
+    },
+    {
+      "key": "wurth",
+      "supplier": "Würth",
+      "url": "https://wurth.is/",
+      "finding": "Opinber vöruskrá; fyrirtækjaverð krefjast innskráningar.",
+      "next_step": "Vörusíðukort; verðtenging þarf sérstaklega samningsverð eða aðgang."
+    },
+    {
+      "key": "byko",
+      "supplier": "BYKO",
+      "url": "https://byko.is/serlausnir/verdlistar",
+      "finding": "Opinberir PDF-verðlistar til staðar, m.a. timbur og stál. Veftenging ólokið.",
+      "next_step": "Verðlistainnflutningur er möguleg leið; þarf að varðveita gildisdagsetningu."
+    },
+    {
+      "key": "isol",
+      "supplier": "Ísól",
+      "url": "https://www.isol.is/",
+      "finding": "Vefverslun til staðar; fyrri söfnun fékk HTTP 403.",
+      "next_step": "Óska eftir vöruskrárútflutningi eða samþykktri gagnatengingu."
+    }
+  ]
+}

@@ -5,7 +5,7 @@ Leitanlegur vörugrunnur og verðsamanburður fyrir innkaup. Fyrsta keyranlega �
 ## Keyra
 
 ```sh
-git clone --branch feature/procurement-catalogue https://github.com/Loopmini/innkaupsferil.git
+git clone --branch feature/supplier-directories https://github.com/Loopmini/innkaupsferil.git
 cd innkaupsferil
 python app.py
 ```
@@ -89,10 +89,41 @@ Fyrri verkefnisgögn tengjast nú með staðbundnu JSON-úttaki. Það er afrit 
 
 Húsasmiðjan er lesin úr opinberu síðukorti í endurkeyranlegum lotum, 100 slóðir í hverri sjálfgefinni keyrslu. Borar eru fremst í fyrstu umferð. Í næstu keyrslum eru jafnframt endurskoðaðar allt að 50 elstu athuganir sem eru eldri en sólarhringur; ekki hvert verð daglega. `--husa-limit 500` stækkar lotuna. Bendill vistast í `data/market-status.json`. Síðukort telur slóðir, ekki staðfestar vörur. Flokkasíður án aðalvörunúmers eru ekki fluttar inn. Vörusíður án verðs haldast með óþekktu verði.
 
-BYKO, Sindri, Fossberg og Ísól eru prófuð en fá ekki tilbúna tengingu ef robots.txt, aðgangur eða sértækur vörulestur bregst. Aðrir birgjar eru enn ótengdir. Aðgangshöfnun 401/403 eða 429 er ekki sniðgengin. Engin innskráning eða leynilyklar eru notuð.
+BYKO, Sindri, Fossberg og Ísól eru prófuð en fá ekki tilbúna tengingu ef robots.txt, aðgangur eða sértækur vörulestur bregst. Fleiri vöruskrártengingar bættust við í útgáfu 0.4, sjá neðar. Aðgangshöfnun 401/403 eða 429 er ekki sniðgengin. Engin innskráning eða leynilyklar eru notuð.
 
 Nýjar athuganir vistast í `data/market-live.json`, stöður í `data/market-status.json` og breytingasaga opinberra verðs/lagers í `data/market-history.sqlite`. Fyrri gögn eru varðveitt ef tenging mistekst. Stakar vörur sem hverfa úr heilli Þór-API-keyrslu falla út úr nýjasta listanum; eldri athuganir haldast í verðsögu. Handfærðar upphafsathuganir geta enn birst með eigin eldri dagsetningu. VSK og einingamagn eru áfram ekki giskuð; óstaðfest nettóverð er ekki notað í verðreiknuðum innkaupalistum.
 
 Appið uppfærir sjálfvirkt ef 24 klst. eru liðnar frá síðustu keyrslu og meðan Python-forritið keyrir. Þetta er ekki þjónusta sem keyrir áfram þegar tölvan eða forritið er slökkt. Slökkva má á sjálfvirkninni með `INNKAUP_AUTO_REFRESH=0`. Hnappurinn **Uppfæra markaðsverð** ræsir söfnun í bakgrunni. Í **Birgjar** sést árangur og takmarkanir hverrar tengingar. `Uppfaera-markad.bat` keyrir einnig uppfærslu án þess að opna vefappið.
 
 Opinberar tækniskýringar: https://developer.woocommerce.com/docs/apis/store-api/resources-endpoints/products/
+
+
+## Útgáfa 0.4 – vöruskrár án verðs og könnun allra birgja
+
+Vörur án verðs eru leitanlegar og tengdar heimild, með `price: null`. Ekkert verð eða lagerstaða er áætlað. Færslur geta verið vörufjölskyldur; vörunúmer afbrigða sem vantar eru ekki búin til. Vörufjölskyldunúmer með X-stöfum hjá Barka eru ekki pöntunarnúmer.
+
+`python market_sync.py --sources rubix landvelar isfell barki wurth iskraft hampidjan` keyrir nýju tengingarnar. Rúbix, Ísfell, Barki og Würth eru lesin í 25 slóða lotum úr opinberum síðukortum. Ískraft hefur aðeins eina staðfesta vöruslóð í fyrstu tengingu; síðukortið reyndist ekki innihalda vörulista. Hampiðjan er lesin í 20 vöru lotum úr vörulista. Landvélar eru lesnar í 100 færslu lotum úr opinberu Store API. Bendill varðveitist og hringir aftur þegar enda er náð; það þýðir EKKI að hver vara verði uppfærð daglega. Hlutaþekja er sýnd allan tímann. Fjöldi slóða er ekki alltaf fjöldi sérgreindra afbrigða.
+
+Rúbix-tengingin les nákvæmt verð úr aðalverðreit; frá-verð afbrigða er ekki notað. Hinar nýju síðukortstengingarnar lesa vörur án verðvinnslu. Landvéla-API getur skilað verði, en núllverð eru talin óþekkt, aldrei ókeypis. Verðlausar vörur eru ekki settar í verðreiknaða innkaupalista.
+
+### Könnun 14. október 2026
+
+| Birgir | Niðurstaða / leið |
+|---|---|
+| Rúbix | Opinber vöruskrá og verð. Rubix-samstæðan lýsir PunchOut/EDI; ekki staðfest fyrir íslenska aðganginn. |
+| Vatnsvirkinn | Nýr JavaScript-vefur; engin staðfest vörugagnatenging enn. Óska eftir vöruskrárútflutningi. |
+| Vatn og veitur, Rönning | Opinberir vefir en sjálfvirkt aðgangspróf fékk 403. Kanna gagnaskipti við Fagkaup. |
+| Sindri, Fossberg | Fyrri 403 niðurstaða stendur; ekki prófað framhjá aðgangstakmörkun. Kanna Fagkaup-útflutning. |
+| Ískraft | Opinber heiti og vörunúmer; verð krefjast sérstakrar leiðar. Aðeins ein staðfest vöruslóð; heildarvörutenging ólokið. |
+| Reykjafell | robots.txt útilokar /products og /vorur. Óska eftir samþykktri tengingu eða útflutningi. |
+| Hampiðjan | Opinber vörulisti, vörunúmer og lýsingar; innskráning til pöntunar. |
+| Ísfell | Opinberar vörusíður og bæklingar. Vörusíður lesnar; PDF-afbrigði ekki enn sundurliðuð. |
+| Landvélar | Opinbert Store API svarar; sum verð vantar/núll. |
+| Barki | Opinber vöruskrá, fjölskyldur og tækniblöð; engin staðfest verðtenging. |
+| Würth | Opinber vöruskrá; fyrirtækjaverð krefjast innskráningar. |
+| BYKO | Opinber PDF-verðlistaleið til staðar; PDF-innlestur ekki sjálfvirkur enn. |
+| Ísól | Vefverslun; fyrri 403 niðurstaða. Óska eftir samþykktri tengingu eða útflutningi. |
+
+Heimildir: https://rubix.is/ · https://solution.rubix.com/service/e-procurement/ · https://vatnsvirkinn.is/ · https://www.vatnogveitur.is/ · https://www.ronning.is/ · https://iskraft.husa.is/ · https://www.reykjafell.is/robots.txt · https://verslun.hampidjan.is/vorur · https://isfell.is/vorulistar/ · https://landvelar.is/vorur/ · https://www.barki.is/ · https://wurth.is/ · https://byko.is/serlausnir/verdlistar
+
+Könnun er einnig í `seeds/supplier-connections.json` og birgjakortum viðmótsins. Opinber vefverslun sannar hvorki API-aðgang né heimild til að sækja samningsverð. Enginn póstur eða aðgangsumsókn hefur verið send.
