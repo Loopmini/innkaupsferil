@@ -1,6 +1,6 @@
 'use strict';
 let selectedFamilyId='',familyQuery='';
-const numericSpec=k=>k.endsWith('_mm')||['head_weight_g','weight_g','voltage_v','current_a','power_w'].includes(k);
+const numericSpec=k=>k.endsWith('_mm')||k.endsWith('_deg')||['head_weight_g','weight_g','voltage_v','current_a','power_w'].includes(k);
 function familySpecKeys(id){
  const config=state.metadata?.taxonomy?.comparison_fields||{};
  const keys=Object.keys(config).filter(k=>id===k||id.startsWith(k+'.')||k.startsWith(id+'.'));

@@ -18,6 +18,8 @@ SPEC_FIELDS = {'thickness_mm':'Þykkt (mm)', 'width_mm':'Breidd (mm)', 'length_m
                'material':'Efni / viðartegund', 'standard':'Staðall', 'diameter_mm':'Þvermál (mm)', 'nominal_size':'Nafnstærð (DN)', 'pressure_class':'Þrýstiflokkur'}
 SPEC_FIELDS.update({'head_weight_g':'Þyngd hauss (g)','weight_g':'Skráð þyngd (g)','handle_material':'Skaftgerð / efni','grip':'Grip','thread':'Gengja','coating':'Húðun','connection_type':'Tengigerð','seal_material':'Þéttiefni','temperature_range':'Hitastigssvið','application':'Skráð notkun','voltage_v':'Spenna (V)','current_a':'Straumur (A)','power_w':'Afl (W)','ip_rating':'IP-vörn','battery_system':'Rafhlöðukerfi','capacity':'Afköst','included':'Það sem fylgir','limitations':'Takmarkanir','certifications':'Vottanir'})
 NUMERIC = {'thickness_mm','width_mm','length_mm','diameter_mm','head_weight_g','weight_g','voltage_v','current_a','power_w'}
+SPEC_FIELDS.update({'nail_length_min_mm':'Naglalengd frá (mm)','nail_length_max_mm':'Naglalengd að (mm)','nail_diameter_min_mm':'Naglþvermál frá (mm)','nail_diameter_max_mm':'Naglþvermál að (mm)','collation_angle_deg':'Halli naglaraðar (gráður)','collation_type':'Samsetning naglaraðar','nail_head_type':'Hausgerð nagla'})
+NUMERIC.update({'nail_length_min_mm','nail_length_max_mm','nail_diameter_min_mm','nail_diameter_max_mm','collation_angle_deg'})
 LEGACY = {
  'Borar og snittvörur':'tools.drilling.unspecified', 'Skurðar- og slípivörur':'tools.cutting.unspecified',
  'Handverkfæri og mælitæki':'tools.hand.unspecified', 'Vélar og rafmagnsverkfæri':'tools.power.power',
@@ -102,6 +104,8 @@ RULES = [
 
 def detect(text):
     n = norm(re.split(r'\s+(?:fyrir|f/|f\.|með|m/)\s*', str(text or ''), maxsplit=1, flags=re.I)[0])
+    if re.search(r'byssunagl|naglar.{0,12}(?:i |fyrir )?naglabyss|collated nail|strip nail|coil nail',norm(text)):return 'fasteners.nails.collated'
+    if re.search(r'naglabyss|nail gun|nailer',n) and not re.search(r'varahlut|hulstur|haldari|naglar|byssunagl',n):return 'tools.power.nailers'
     if not re.search(r'hulstur|haldari|slykkj|tengistykki|hamarhaus|varahlut|heftibyss',n):
         for key,pattern in [('claw_hammers',r'klaufham(?:ar|rar)|claw hammer'),('rubber_mallets',r'gummiham(?:ar|rar)|rubber mallet'),('sledgehammers',r'\bsleggj|sledgehammer'),('ball_peen',r'kuluham(?:ar|rar)|ball.peen'),('striking_hammers',r'slagham(?:ar|rar)'),('hammers_unspecified',r'\b(?:munnhamar|rafvirkjahamar|hamar)\b|^hamrar$')]:
             if re.search(pattern,n):return 'tools.hand.'+key
@@ -115,6 +119,10 @@ def detect(text):
         if label=='Byggingarefni':continue
         if re.search(pattern,n):return LEGACY[label]
     return None
+
+
+def source_snapshot(o):
+    return {k:o.get(k) for k in ('name','description','category','subcategory','supplier_categories')}
 
 
 def classify(o, override):
@@ -138,6 +146,10 @@ def classify(o, override):
                 else:leaf=UNKNOWN;source='Til yfirferðar';evidence='Flokkunarupplýsingar vantar eða eru ósamhljóða.'
     leaf=leaf if leaf in LEAVES else UNKNOWN
     review=leaf.endswith(('.unspecified','.unknown','_unspecified'))
+    if override.get('classification_id') and override.get('source_snapshot') and override['source_snapshot']!=source_snapshot(o):
+        proposed=classify({**o,'manual_category':None},{})
+        if proposed['id'] not in (leaf,UNKNOWN):
+            review=True;evidence='Handvirk flokkun varðveitt. Ný birgjagögn benda til annarrar flokkunar: '+' → '.join(proposed['path'])
     return {'id':leaf,'path':LEAVES[leaf],'source':source,'evidence':evidence[:600],
             'needs_review':review,'manual':bool(override.get('classification_id') or o.get('manual_category'))}
 
@@ -209,8 +221,10 @@ def specifications(o, classification, override):
             if k in SPEC_FIELDS and valid_spec(k,v):put(k,v,'Skráður tæknilegur eiginleiki frá birgi')
     for k,v in override.get('specifications',{}).items():
         if v is None:values.pop(k,None);evidence.pop(k,None)
-        else:values[k]=v;evidence[k]='Handvirkt staðfest af notanda'
-        if k in conflicts:conflicts.remove(k)
+        else:
+            if k in values and values[k]!=v and k not in conflicts:conflicts.append(k)
+            values[k]=v;evidence[k]='Handvirkt staðfest af notanda'
+        # Conflicting incoming supplier facts remain reviewable; manual value wins.
     missing=[]
     if classification['id'].startswith('building.timber.'):
         missing=[k for k in ('thickness_mm','width_mm','length_mm','strength_class','treatment') if k not in values]
@@ -232,8 +246,10 @@ def validate_override(data):
     tags=data.get('search_tags',[])
     if not isinstance(tags,list) or len(tags)>20 or any(not isinstance(t,str) or not 0<len(t.strip())<=60 for t in tags):
         raise ValueError('Hámark 20 leitartög, 1–60 stafir hvert.')
+    uses=data.get('use_cases',[])
+    if not isinstance(uses,list) or len(uses)>20 or any(not isinstance(x,str) or not 0<len(x.strip())<=120 for x in uses):raise ValueError('Ógild notkunarsvið.')
     if type(data.get('keep_separate',False)) is not bool:raise ValueError('Ógild aðgreining vörufærslu.')
-    return {'keep_separate':data.get('keep_separate',False),'classification_id':leaf,'specifications':specs,'search_tags':list(dict.fromkeys(t.strip() for t in tags))}
+    return {'use_cases':list(dict.fromkeys(x.strip() for x in uses)),'keep_separate':data.get('keep_separate',False),'classification_id':leaf,'specifications':specs,'search_tags':list(dict.fromkeys(t.strip() for t in tags))}
 
 
 def enrich(o,override=None):
@@ -241,6 +257,7 @@ def enrich(o,override=None):
     c=classify(o,override);values,evidence,conflicts,missing=specifications(o,c,override)
     o.update(classification=c,specifications=values,specification_evidence=evidence,
              specification_conflicts=conflicts,missing_specifications=missing,
-             search_tags=list(dict.fromkeys([*c['path'],*(override.get('search_tags',[]))])),
+             use_cases=override.get('use_cases',[]),
+             search_tags=list(dict.fromkeys([*c['path'],*(override.get('search_tags',[])),*(override.get('use_cases',[]))])),
              product_enrichment=override)
     return o

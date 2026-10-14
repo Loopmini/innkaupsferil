@@ -21,6 +21,7 @@ import import_manager
 import procurement
 import supplier_registry
 import assistant_reader
+import product_relations
 DATA_LOCK = threading.RLock()
 
 ROOT = Path(__file__).parent
@@ -56,6 +57,7 @@ def connect():
     import_manager.setup(db)
     procurement.setup(db)
     supplier_registry.setup(db)
+    product_relations.setup(db)
     return db
 
 def number(value, label, positive=False):
@@ -172,6 +174,7 @@ def read_catalogue():
         r['image_url']=image_url(r.get('image_url') or images.get(r['id'],''))
         if r['id'] in terms:r['terms']=terms[r['id']]
         taxonomy.enrich(r,enrichments.get(r['id'],{}))
+    with connect() as db:metadata['relation_index']=[dict(r) for r in db.execute('SELECT a,b,kind FROM product_relations')]
     metadata['taxonomy']=taxonomy.TREE
     metadata['specification_fields']=taxonomy.SPEC_FIELDS
     metadata['sync']=sync_status()
@@ -288,6 +291,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def get_response(self):
         path = urlsplit(self.path).path
+        if path == '/api/product-relations':
+            oid=int(parse_qs(urlsplit(self.path).query).get('id',['0'])[0])
+            return self.send(product_relations.listing(__import__(__name__),oid))
         if path == '/api/supplier-profiles':return self.send(supplier_registry.listing(__import__(__name__)))
         if path == '/api/supplier-imports':
             name=parse_qs(urlsplit(self.path).query).get('name',[''])[0]
@@ -341,7 +347,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(catalogue())
         if path == '/api/template':
             return self.send((','.join(FIELDS) + '\n').encode(), content_type='text/csv; charset=utf-8')
-        files = {'/workspace-ui.js': ('workspace-ui.js','text/javascript'), '/families.js': ('families.js','text/javascript'), '/family-ui.js': ('family-ui.js','text/javascript'), '/supplier-ui.js': ('supplier-ui.js','text/javascript'), '/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
+        files = {'/relations-ui.js': ('relations-ui.js','text/javascript'), '/interaction-ui.js': ('interaction-ui.js','text/javascript'), '/workspace-ui.js': ('workspace-ui.js','text/javascript'), '/families.js': ('families.js','text/javascript'), '/family-ui.js': ('family-ui.js','text/javascript'), '/supplier-ui.js': ('supplier-ui.js','text/javascript'), '/workflow-ui.js': ('workflow-ui.js', 'text/javascript'), '/chat-progress.js': ('chat-progress.js', 'text/javascript'), '/taxonomy-ui.js': ('taxonomy-ui.js', 'text/javascript'), '/ai.js': ('ai.js', 'text/javascript'), '/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/search.js': ('search.js', 'text/javascript'), '/groups.js': ('groups.js','text/javascript'), '/bom-core.js': ('bom-core.js','text/javascript'), '/bom-ui.js': ('bom-ui.js','text/javascript'), '/style.css': ('style.css', 'text/css')}
         if path in files:
             name, kind = files[path]
             return self.send((ROOT / 'static' / name).read_bytes(), content_type=kind + '; charset=utf-8')
@@ -365,6 +371,7 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ValueError('Ógild beiðni.')
+            if self.path == '/api/product-relation-save':return self.send(product_relations.save(__import__(__name__),data))
             if self.path == '/api/supplier-save':return self.send(supplier_registry.save(__import__(__name__),data))
             if self.path == '/api/supplier-probe':return self.send(supplier_registry.probe(__import__(__name__),data))
             if self.path in ('/api/backup-create','/api/backup-restore'):
@@ -399,9 +406,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send({'ok':True})
             if self.path == '/api/product-enrichment':
                 oid=int(data['id'])
-                if not any(o['id']==oid for o in catalogue()['offers']):raise ValueError('Vara fannst ekki.')
+                offer=next((o for o in catalogue()['offers'] if o['id']==oid),None)
+                if not offer:raise ValueError('Vara fannst ekki.')
                 value=taxonomy.validate_override(data)
+                value['source_snapshot']=taxonomy.source_snapshot(offer)
                 with connect() as db:
+                    old=db.execute('SELECT data FROM product_enrichment WHERE offer_id=?',(oid,)).fetchone()
+                    product_relations.audit(db,oid,'classification',json.loads(old[0]) if old else None,None if data.get('reset') is True else value,'Handvirk yfirferð í vöruspjaldi')
                     if data.get('reset') is True:
                         db.execute('DELETE FROM product_enrichment WHERE offer_id=?',(oid,))
                     else:

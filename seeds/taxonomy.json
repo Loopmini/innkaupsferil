@@ -712,6 +712,11 @@
             {
               "id": "fasteners.nails.unspecified",
               "name": "Vörutegund óstaðfest"
+            },
+            {
+              "id": "fasteners.nails.collated",
+              "name": "Byssunaglar",
+              "description": "Samsettir naglar fyrir naglabyssur. Halli, mál og samsetning þurfa að passa við verkfærið."
             }
           ]
         },
@@ -810,6 +815,11 @@
             {
               "id": "tools.power.unspecified",
               "name": "Vörutegund óstaðfest"
+            },
+            {
+              "id": "tools.power.nailers",
+              "name": "Naglabyssur",
+              "description": "Naglabyssur; rekstrarvara þarf staðfest samhæfi við nákvæma gerð."
             }
           ]
         },
@@ -1530,6 +1540,28 @@
       "length_mm",
       "material",
       "grip",
+      "application"
+    ],
+    "tools.power.nailers": [
+      "nail_length_min_mm",
+      "nail_length_max_mm",
+      "nail_diameter_min_mm",
+      "nail_diameter_max_mm",
+      "collation_angle_deg",
+      "collation_type",
+      "nail_head_type",
+      "voltage_v",
+      "battery_system",
+      "application"
+    ],
+    "fasteners.nails.collated": [
+      "length_mm",
+      "diameter_mm",
+      "collation_angle_deg",
+      "collation_type",
+      "nail_head_type",
+      "material",
+      "coating",
       "application"
     ]
   }
