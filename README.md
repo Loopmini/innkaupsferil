@@ -181,3 +181,12 @@ Opnaðu „Velja birgja fyrir innlestur“, veldu einn eða fleiri, eða notaðu
 Báðar leiðir vinna með allt að tvo birgja samtímis. Heildarlestur afgreiðir tvær birgjalotur í einu; ein samræmd vistun kemur í veg fyrir að tveir þræðir yfirskrifi gögn hvors annars. Bið milli beiðna og robots-reglur hvers birgis haldast. Stöðvun bíður eftir báðum virkum lotum. Óvaldir birgjar varðveitast og enginn tómur vallisti er túlkaður sem „allir“. Birgjaval læsist meðan innlestur stendur yfir.
 
 Prófað: 43 Python-próf, Node-leitar/BOM-próf og DOM-próf fyrir birgjaval, rétt beiðnigögn, myndir og flokkun. Samtímapróf notar tvo þræði með samstillingarhindrun og sannreynir jafnframt varðveislu óvalinna birgja.
+
+
+## Yfirferð flokkunar með birgjalýsingum
+
+Sjálfvirk flokkun notar nú nákvæm vöruheiti, upphaf vörulýsingar og birgjaflokka. Lýsingar um notkun og meðfylgjandi fylgihluti fá ekki að yfirgnæfa sjálfa vörutegundina. Skrúfur, skrúfbitar og skrúfvélar eru aðgreindar; beygingar og samsett orð eins og tréskrúfa, steinbor og fræsitönn hafa sérstakar reglur. Leikföng/módel, suðuvörur, baðbúnaður, vinnupallar og þéttingar hafa eigin flokka.
+
+Vöruspjaldið sýnir flokkunargrundvöll og textann sem styður hana. Handvirkar leiðréttingar hafa alltaf forgang. Ófullnægjandi eða mótsagnakennd lýsing getur áfram skilað Annað og óflokkað; þetta er reglubundin tillaga, ekki staðfest bókhaldsflokkun eða tæknilegt jafngildi. Upprunaleg heiti, birgjaflokkar og verð breytast ekki.
+
+Nýju reglurnar gilda sjálfkrafa um fyrirliggjandi og ný gögn þegar forritið er endurhlaðið. Lýsingar sem eru aðeins vistaðar í annarri uppsetningu eru ekki aðgengilegar við þessa yfirferð, en sömu reglur gilda um þær þar. Prófanir: `node tests/groups.test.js` (22 tilvik) auk fyrri Python-, leitar-, BOM- og viðmótsprófa.
